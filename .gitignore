@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Bau der Pakete
+/out/
+/AppDir/
+*.AppImage
+*.deb
+*.exe~
+
+# Pruefbilder und Zwischenzeug
+/tools/*-out*.png
+/*.png
+!assets/*.png
+probe*.png
+
+# Verteilerverzeichnis von PyInstaller
+/packaging/build/
+/packaging/dist/
+
+# Lokales
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Werkzeug fuer den AppImage-Bau
+/.bau/
