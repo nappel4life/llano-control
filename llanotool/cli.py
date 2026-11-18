@@ -23,6 +23,12 @@ from .loop import Controller, daemon_running
 from .protocol import COLORS, EFFECTS, EFFECT_SPEEDS
 from .sensors import Sensors
 
+# Wie lange die Oberflaeche beim Start darf, bevor die Wacht in der
+# Protokolldatei aufschreibt, wo die Faden stecken. Ein Doppelklick zeigt das
+# Fenster normalerweise in ein, zwei Sekunden; eine halbe Minute ist deshalb
+# grosszuegig, und ein Start, der laenger braucht, ist ein Haenger.
+START_FRIST = 45.0
+
 
 def _lookup(text: str, table: dict[str], kind: str) -> int:
     """Accept "2", "gruen" or "regenbogen" for a numbered setting."""
@@ -307,6 +313,16 @@ def protokolldatei(genau: bool = False) -> str:
             handler.setLevel(logging.DEBUG if genau else logging.INFO)
     try:
         faulthandler.enable(file=zeiger.stream, all_threads=True)
+        # Ein Start, der nicht stirbt, sondern nur stehen bleibt, hinterliess
+        # bisher ueberhaupt nichts: kein Fenster, keine Datei, kein Abschied.
+        # Die Wacht schreibt nach einer halben Minute den Blick auf jeden Faden
+        # in dieselbe Datei. Absichtlich ohne Abbruch - jemand, der nur auf sein
+        # Fenster wartet, ist mit einem stehenden Programm besser bedient als mit
+        # einem, das ihm nach dreissig Sekunden wegbricht.
+        # Die Wacht braucht ihren Zielort selbst: Ohne die Datei hier landet ihr
+        # Blick auf dem Bildschirm, und den hat ein Doppelklick nicht.
+        faulthandler.dump_traceback_later(START_FRIST, repeat=False,
+                                          file=zeiger.stream)
     except (OSError, ValueError, AttributeError):
         pass                           # ohne Haertetest laeuft die Oberflaeche auch
     return ort

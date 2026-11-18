@@ -237,7 +237,7 @@ sie beim Start tut, schreibt sie deshalb in den Einstellungsordner:
 In der Datei steht jeder Schritt des Starts, beginnend mit der Fassung:
 
 ```
-19:20:38 INFO   Oberflaeche startet (Fassung 1.1.8).
+19:20:38 INFO   Oberflaeche startet (Fassung 1.1.9).
 19:20:38 DEBUG  Die Oberflaechenbibliothek ist da; die Anwendung wird gebaut.
 19:20:38 INFO   gekoppelt an \\?\hid#vid_374a&pid_b101#7&2985dc16&0&0000#…
 19:20:38 DEBUG  Das Fenster ist gebaut und wird gezeigt (normal).
@@ -249,6 +249,12 @@ Wo diese Zeilen abbrechen, ist die Stelle, an der es steht. Auch ein Absturz
 dieselbe Datei, weil der Absturzfaenger des Interpreters beim Start scharf
 gestellt wird. Ein Doppelklick, der augenscheinlich nichts tut, ist damit
 beschreibbar statt nur ratbar.
+
+Umgekehrt gilt dasselbe: Wer nicht abstürzt, sondern einfach stehen bleibt,
+liess bisher gar nichts zurück. Eine halbe Minute nach dem Start schreibt
+dieselbe Datei den Stand jedes Fadens auf — und lässt das Programm danach in
+Ruhe, statt es zu beenden. Steht dort `Timeout (0:00:45)!`, war es ein Hänger,
+und die Zeilen darunter nennen das, worauf die Oberfläche gewartet hat.
 
 Zwei Dinge, die dabei sonst verwirren:
 
@@ -459,7 +465,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.8 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.9 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.

@@ -9,6 +9,7 @@ same time.
 
 from __future__ import annotations
 
+import faulthandler
 import logging
 import math
 import os
@@ -1508,6 +1509,9 @@ def _run_window(app: QApplication, controller: Controller, wake: QuitWatcher,
                                 "Diese Oberflaeche hat kein Taskleisten-Symbol.",
                                 QSystemTrayIcon.MessageIcon.Warning, 5000)
 
+    # Ab hier ist der Start gluecklich: Die Wacht auf den Haenger braucht die
+    # Schleife nicht mehr zu beobachten, die laeuft ja jetzt.
+    faulthandler.cancel_dump_traceback_later()
     log.info("Fenster ist gebaut und gezeigt; Schleife laeuft an.")
     wake.attach(window)
     return app.exec()

@@ -10,6 +10,7 @@ import faulthandler
 import logging
 import os
 import tempfile
+import time
 import unittest
 from unittest import mock
 
@@ -38,6 +39,7 @@ class Startprotokoll(unittest.TestCase):
         self.faenger_anaus = not faulthandler.is_enabled()
 
     def tearDown(self):
+        faulthandler.cancel_dump_traceback_later()
         for handler in list(self.wurzel.handlers):
             if handler not in self.handler_der_wurzel:
                 self.wurzel.removeHandler(handler)
@@ -89,6 +91,29 @@ class Startprotokoll(unittest.TestCase):
         self.assertIn("Oberflaeche startet", protokoll)
         self.assertIn("das Fenster blieb halbfertig", protokoll)
         self.assertIn("haengen geblieben", str(kasten.exception))
+
+    def test_ein_stehenbleiben_meldet_selbst_wo_es_steht(self):
+        # Ein Start, der nicht stirbt, sondern nur steht, hinterliess bisher gar
+        # nichts - kein Fenster, keine Datei, kein Abschied. Die Wacht muss
+        # deshalb von selbst aufschreiben, wo die Faden hingen; sonst lautet der
+        # Bericht wieder nur "passiert nichts".
+        with mock.patch.object(cli, "START_FRIST", 0.05):
+            pfad = cli.protokolldatei()
+            time.sleep(0.6)                          # absichtlich nicht fertig
+        with open(pfad, encoding="utf-8") as datei:
+            protokoll = datei.read()
+        self.assertIn("Timeout", protokoll)
+        self.assertIn("test_ein_stehenbleiben", protokoll)
+
+    def test_ein_gelungener_start_bestellt_die_wacht_ab(self):
+        # Die Wacht darf einem gesunden Programm nicht nachtraeglich alle halbe
+        # Minute Stapelichten in die Datei schreiben.
+        with mock.patch.object(cli, "START_FRIST", 30.0):
+            cli.protokolldatei()
+        faulthandler.cancel_dump_traceback_later()
+        time.sleep(0.2)                              # die Wacht waeren faellig
+        self.assertNotIn("Timeout", self._protokoll())
+
 
 if __name__ == "__main__":
     unittest.main()
