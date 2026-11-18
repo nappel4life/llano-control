@@ -27,13 +27,41 @@ use std::os::unix::io::AsRawFd;
 mod lock_windows;
 
 /// Der Ordner, in dem die Datei liegt: nur dieser Benutzer darf dort schreiben.
+///
+/// Unter Windows gibt es `XDG_RUNTIME_DIR` nicht, und ein `/tmp` landete dort
+/// auf `C:\tmp` - einem Ordner, den die Python-Fassung nie anfasst. Sie nimmt
+/// `%LOCALAPPDATA%\llano` (`llanotool/loop.py`), und dieselbe Datei ist der
+/// ganze Grund, warum sich beide Fassungen bemerken. Standen sie auf
+/// verschiedenen Pfaden, hielten Oberflaeche und Hintergrunddienst das Geraet
+/// gleichzeitig fest und lasen sich gegenseitig die Antworten weg.
 pub fn laufzeit_ordner() -> PathBuf {
-    let basis = env::var("XDG_RUNTIME_DIR")
-        .ok()
-        .filter(|text| !text.is_empty())
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("/tmp"));
-    basis.join("llano")
+    laufzeit_ordner_aus(
+        env::var("XDG_RUNTIME_DIR").ok().as_deref(),
+        env::var("LOCALAPPDATA").ok().as_deref(),
+    )
+}
+
+/// Dieselbe Entscheidung mit gegebenen Werten, damit eine Pruefung die echte
+/// Umgebung nicht verbiegen muss.
+fn laufzeit_ordner_aus(xdg: Option<&str>, lokal: Option<&str>) -> PathBuf {
+    #[cfg(windows)]
+    {
+        let _ = xdg;  // unter Windows nicht vorgesehen, auch wenn sie gesetzt ist
+        let basis = lokal
+            .filter(|text| !text.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(env::temp_dir);
+        basis.join("llano")
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = lokal;  // die Laufzeitzaeit der shell gehoert Linux und FreeBSD
+        let basis = xdg
+            .filter(|text| !text.is_empty())
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("/tmp"));
+        basis.join("llano")
+    }
 }
 
 /// Der Weg zur Sperrdatei, wie die Python-Fassung ihn nimmt: eine Vorgabe aus
@@ -240,6 +268,36 @@ mod tests {
     fn der_weg_ohne_vorgabe_liegt_in_der_laufzeit() {
         assert!(sperr_datei_in(None).ends_with("llano/daemon.lock"));
         assert!(sperr_datei_in(Some("")).ends_with("llano/daemon.lock"));
+    }
+
+    #[test]
+    #[cfg(windows)]
+    fn unter_windows_folgt_die_sperre_der_python_fassung() {
+        // Genau den Ordner nimmt `llanotool/loop.py`; weichen die beiden voneinander
+        // ab, laufen Oberflaeche und Dienst am Geraet vorbei, ohne einander zu
+        // bemerken. Der Fall ist hier schon aufgetreten.
+        assert_eq!(
+            laufzeit_ordner_aus(None, Some(r"C:\Users\nappe\AppData\Local")),
+            PathBuf::from(r"C:\Users\nappe\AppData\Local\llano")
+        );
+        // Die Linux-Umgebungsvorgabe gilt unter Windows nicht, sonst landet die
+        // Datei auf einem anderen Zweig als bei der Python-Fassung.
+        assert_eq!(
+            laufzeit_ordner_aus(Some("/run/user/1000"), Some(r"D:\Daten")),
+            PathBuf::from(r"D:\Daten\llano")
+        );
+        assert!(laufzeit_ordner_aus(None, None).ends_with("llano"));
+    }
+
+    #[test]
+    #[cfg(not(windows))]
+    fn unter_linux_gilt_die_shell_laufzeit() {
+        assert_eq!(
+            laufzeit_ordner_aus(Some("/run/user/1000"), None),
+            PathBuf::from("/run/user/1000/llano")
+        );
+        assert_eq!(laufzeit_ordner_aus(None, None), PathBuf::from("/tmp/llano"));
+        assert_eq!(laufzeit_ordner_aus(Some(""), None), PathBuf::from("/tmp/llano"));
     }
 
     #[test]
