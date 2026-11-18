@@ -1,0 +1,18 @@
+[Unit]
+Description=llano V12 Ultra: Kuehler beim Anmelden ein, beim Abmelden und Herunterfahren aus
+Documentation=file:%h/Lokale_LLM/Projekte/llano-control/README.md
+# Der Kuehler haengt an USB. Beim Anmelden ist er meist schon da, manchmal
+# aber erst eine Sekunde spaeter; das holt --wait auf.
+After=default.target
+
+[Service]
+# Einmal einschalten, dann mit "bleibt aktiv" gemerkt werden, damit beim
+# Herunterfahren ExecStop laeuft. Das "-" vor ExecStop: ist der Kuehler gerade
+# nicht erreichbar, darf der Dienst den Vorgang nicht aufhalten.
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=%h/Lokale_LLM/Projekte/llano-control/llano power on --wait 25 --if-free
+ExecStop=-%h/Lokale_LLM/Projekte/llano-control/llano power off --if-free
+
+[Install]
+WantedBy=default.target

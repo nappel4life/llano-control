@@ -1,0 +1,16 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=llano V12 Ultra
+GenericName=Cooling pad control
+GenericName[de]=Steuerung des Notebookkuehlers
+Comment=Fan curve and lighting for the llano V12 Ultra
+Comment[de]=Luefterkurve und Beleuchtung fuer den llano V12 Ultra
+Exec=llano gui
+Icon=llano-control
+Terminal=false
+Categories=System;Settings;Qt;
+StartupNotify=false
+X-KDE-StartupNotify=false
+X-GNOME-Autostart-enabled=true
+X-Desktop-File-Install-Version=0.26

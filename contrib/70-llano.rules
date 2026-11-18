@@ -1,0 +1,14 @@
+# llano V12 Ultra (USB 374a:b101) fuer den angemeldeten Benutzer freigeben.
+#
+#   sudo cp contrib/70-llano.rules /etc/udev/rules.d/
+#   sudo udevadm control --reload-rules && sudo udevadm trigger
+#   # danach den USB-Stecker einmal ziehen und wieder stecken
+#
+# uaccess uebergibt das Geraet an die aktive lokale Sitzung (systemd-logind),
+# ohne dass man in einer Gruppe sein muss.
+SUBSYSTEM=="usb", ATTR{idVendor}=="374a", ATTR{idProduct}=="b101", MODE="0660", TAG+="uaccess"
+KERNEL=="hidraw*", ATTRS{idVendor}=="374a", ATTRS{idProduct}=="b101", MODE="0660", TAG+="uaccess"
+
+# Alternative, falls uaccess hier nicht greift (z. B. in einem Systemdienst
+# oder ohne Logind): alle duerfen das Geraet ansprechen.
+# KERNEL=="hidraw*", ATTRS{idVendor}=="374a", ATTRS{idProduct}=="b101", MODE="0666"
