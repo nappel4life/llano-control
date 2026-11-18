@@ -110,11 +110,43 @@ Zwei Unterschiede zu Linux, die man kennen sollte:
 * **Die Hersteller-Software.** MythCool hält das Gerät gelegentlich exklusiv
   belegtt. Wenn „kein Zugriff“ erscheint: MythCool beenden.
 
-Der Windows-Geräteteil ist nach den dokumentierten Aufrufen geschrieben, aber
-**noch nicht an einem echten Gerät gemessen** — die Linux-Seite dagegen ist
-Zelle für Zelle nachgemessen. Wenn bei dir etwas nicht will, schick die Ausgabe
-von `llano selftest` zu den [Issues](../../issues); sie benennt jeden Schritt
-einzeln.
+### CPU-Temperatur unter Windows (HWiNFO)
+
+Wer die Kurve an die Prozesstemperatur hängen will, braucht unter Windows
+irgendeine Quelle dafür – die gibt es ohne Kernel-Treiber nicht, und einen
+Treiber will hier niemand installieren. Der Weg ist deshalb **HWiNFO**: Es ist
+kostenlos, hält seine Messwerte in einem Speicherblock, den jedes andere
+Programm mitlesen darf, und braucht dafür nur den eingeschalteten
+*Shared Memory Support* (Einstellungen → Main Settings, standardmäßig an).
+
+1. [HWiNFO](https://www.hwinfo.com/download/) installieren und starten – die
+  -installierbare Variante, nicht die portable aus dem Store.
+2. Dieses Programm neu starten (oder auf die nächste Abfrage warten, drei
+   Sekunden genügen).
+3. `llano sensors` zeigt jetzt die Werte mit der Kennung `hwiinfo:`, in der
+   Oberfläche unter „Temperaturen“ – etwa `hwiinfo:CPU (Package)`. Einfach
+   ankreuzen, die Kurve folgt dann dem Prozessor.
+
+Drei Dinge, die dabei auffallen können und absichtlich gemeldet werden:
+
+* **HWiNFO läuft als Administrator** – dann kann ein normales Programm den
+  Block nicht lesen, und auch dieses Programm müsste erhöht starten.
+* **Die kostenlose Fassung hört nach etwa zwölf Stunden auf**, neue Werte
+  einzutragen. Der Block bleibt lesbar, aber alt; ein Neustart von HWiNFO
+  hilft, und das Programm sagt es, sobald die Zahlen stillstehen.
+* **Einzelne Kerne tauchen nur auf, wenn es keinen Gesamtwert gibt.** Der
+  Paketwert ist für eine Lüfterkurve die brauchbare Zahl, und vierzig Zeilen
+  machen die Auswahl unbrauchbar – genau wie unter Linux.
+
+Der Kühler selbst braucht HWiNFO nicht: ohne HWiNFO funktioniert alles wie
+bisher, nur eben mit den Temperaturen, die Windows von sich aus meldet.
+
+Der Windows-Geräteteil ist nach den dokumentierten Aufrufen geschrieben und
+inzwischen auch an einem echten Rechner gemessen: Windows 11 (AMD64), Gerät
+geöffnet, Selbstdiagnose komplett, Oberfläche läuft, Lüfter und Licht folgen
+der Kurve. Die Linux-Seite bleibt die genauer nachgemessene. Wenn bei dir etwas
+nicht will, schick die Ausgabe von `llano selftest` zu den
+[Issues](../../issues); sie benennt jeden Schritt einzeln.
 
 Autostart gibt es beim Installer als Haken („Beim Anmelden starten“); er landet
 im Run-Schlüssel deines Kontos, nicht als Dienst.
@@ -371,7 +403,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.5 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.6 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.

@@ -12,7 +12,10 @@ Under Windows the picture is thinner: there is no hwmon, and reading a CPU
 temperature needs a driver. What the operating system offers on its own is
 
 * the ACPI thermal zones (``MSAcpi_ThermalZoneTemperature`` through WMI),
-* ``nvidia-smi`` again for the NVIDIA GPU.
+* ``nvidia-smi`` again for the NVIDIA GPU,
+* the shared memory of HWiNFO, if HWiNFO happens to be running - that is the
+  only driverless way to a real CPU temperature on Windows, see
+  :mod:`llanotool.sensors_hwiinfo`.
 
 A thermal zone is not a core: it is a point on the board chosen by the
 firmware, it reacts more slowly, and on some laptops it can only be read by an
@@ -26,6 +29,8 @@ import os
 import re
 import subprocess
 import time
+
+from .sensors_hwiinfo import HWiNFO
 
 IS_WINDOWS = os.name == "nt"
 
@@ -258,10 +263,12 @@ class Sensors:
     def __init__(self):
         self._nvidia = NvidiaGpu()
         self._zones = WindowsThermalZones() if IS_WINDOWS else None
+        self._hwiinfo = HWiNFO() if IS_WINDOWS else None
 
     def read(self, collapse: bool = True) -> dict[str, float]:
         if IS_WINDOWS:
             temps = dict(self._zones.read())      # type: ignore[union-attr]
+            temps.update(self._hwiinfo.lesen())   # type: ignore[union-attr]
         else:
             temps = read_hwmon()
         gpu = self._nvidia.read()
@@ -270,10 +277,33 @@ class Sensors:
         return collapse_per_core(temps) if collapse else temps
 
     def note(self) -> str | None:
-        """What a missing temperature list means, if anything."""
-        if self._zones is None or self._zones.read():
-            return None
-        return self._zones.reason
+        """What a missing temperature list means, if anything.
+
+        Unter Windows sind die beiden moeglichen Quellen getrennte Wege: die
+        Warmzezonen des Betriebssystems und der Speicherblock von HWiNFO. Was
+        davon fehlt, wird gesagt - beides hat seinen eigenen Grund.
+        """
+        meldungen = []
+        if self._zones is not None and not self._zones.read():
+            meldungen.append(self._zones.reason)
+        if self._hwiinfo is not None:
+            stillstand = self._hwiinfo.stillstand
+            if stillstand:
+                meldungen.append(stillstand)      # HWiNFO laeuft, misst aber nicht mehr
+            elif not self._hwiinfo.lesen() and not self._hat_cpu_temperatur():
+                # Der Hinweis auf HWiNFO ist nur so lange interessant, wie die
+                # Prozessorkaelte ueberhaupt unbekannt ist.
+                grund = self._hwiinfo.hinweis()
+                if grund:
+                    meldungen.append(grund)
+        return "  ".join(m for m in meldungen if m) or None
+
+    def _hat_cpu_temperatur(self) -> bool:
+        """Meldet eine der Quellen schon eine Temperatur der CPU selbst?"""
+        andeutungen = ("cpu", "coretemp", "k10temp", "package", "core ", "tsen")
+        return any(hinweis in schluessel.lower()
+                   for schluessel in self.read(collapse=False)
+                   for hinweis in andeutungen)
 
     def list(self, collapse: bool = True) -> list[dict]:
         """Stable, human friendly list for pickers in the UI."""
@@ -303,6 +333,7 @@ def _pretty(key: str) -> str:
         "amdgpu": "GPU (AMD)",
         "nouveau": "GPU (NVIDIA)",
         "thermalzone": "Wärmezone (Windows)",
+        "hwiinfo": "HWiNFO",
     }
     base = chip_names.get(chip, chip)
     if not label or label == "total":
