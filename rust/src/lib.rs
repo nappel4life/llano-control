@@ -8,16 +8,22 @@
 //!   folgt), inklusive der Voranfrage, die das Geraet vor jedem Lesen erwartet
 //! * [`sensors`]  - Temperaturen aus `/sys/class/hwmon`
 //!
-//! Was diese Fassung **noch nicht** kann: schreiben (die Bibliothek kann es,
-//! die Kommandozeile bietet es bewusst noch nicht an), die Kurve berechnen, im
-//! Hintergrund laufen und die Oberflaeche. Bis dahin macht das die
-//! Python-Fassung, und beide lesen dieselbe Konfigurationsdatei nicht - sie
-//! sind also zwei getrennte Programme, nicht zwei Haelften eines.
+//! Schreiben ist seit dem Nachmessen am Geraet freigegeben: Stufe, Farbe,
+//! Effekt, Effekttakt, Helligkeit und Beleuchtung aus/an sind auf diesem Pad
+//! geschrieben und per Statusbericht zurueckgelesen worden. Jeder Schreibbefehl
+//! haelt vorher die [Sperrdatei](lock) der Python-Fassung - wer die Oberflaeche
+//! laufen laesst, bekommt deren Prozessnummer in der Meldung und schreibt nicht
+//! gegen sie an.
+//!
+//! Was diese Fassung **noch nicht** kann: die Kurve berechnen, im Hintergrund
+//! laufen, die Konfigurationsdatei lesen und Windows. Bis dahin macht das die
+//! Python-Fassung; es sind zwei getrennte Programme, nicht zwei Haelfften eines.
 //!
 //! Die Byte-Ebene wird gegen `tests/byte-vektoren.json` geprueft, dieselben
 //! Folien wie die Python-Fassung (`tools/protokoll-vektoren.py`).
 
 pub mod device;
+pub mod lock;
 pub mod protocol;
 pub mod sensors;
 

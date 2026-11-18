@@ -15,8 +15,8 @@
 //!    Wer nur die Stufe aendert, muss deshalb die Beleuchtung wiederholen, die
 //!    bleiben soll.
 //! 2. Das Geraet beantwortet eine Abfrage nur einmal; vor dem Lesen gehoert ein
-//!    Statusbericht vorausgeschickt (siehe [`STATUS_REQUEST`] in
-//!    [`crate::device`]).
+//!    Statusbericht vorausgeschickt; der Befehl dazu ist
+//!    `STATUS_REQUEST` im Modul [`crate::device`].
 //!
 //! Dieses Modul ist reine Rechenarbeit: kein Ein- und Ausgabe, keine
 //! Abhaengigkeiten. Die gleichen Byte-Folien wie die Python-Fassung prueft
@@ -56,6 +56,30 @@ pub fn color_name(color: u8) -> String {
         3 => "lila".to_owned(),
         4 => "orange".to_owned(),
         other => format!("unbekannt({other})"),
+    }
+}
+
+/// Zahl zu einer Farbbezeichnung, wie die Kommandozeile sie annimmt.
+pub fn color_value(wort: &str) -> Option<u8> {
+    match wort.trim().to_lowercase().as_str() {
+        "rot" => Some(0),
+        "hellblau" => Some(1),
+        "gruen" | "grün" => Some(2),
+        "lila" => Some(3),
+        "orange" => Some(4),
+        _ => None,
+    }
+}
+
+/// Zahl zu einer Effektbezeichnung.
+pub fn effect_value(wort: &str) -> Option<u8> {
+    match wort.trim().to_lowercase().as_str() {
+        "durchgehend" => Some(0),
+        "atmend" => Some(1),
+        "regenbogen" => Some(2),
+        "lauflicht" => Some(3),
+        "zonen" => Some(4),
+        _ => None,
     }
 }
 
