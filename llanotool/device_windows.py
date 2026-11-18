@@ -100,7 +100,16 @@ class HIDD_ATTRIBUTES(ctypes.Structure):
 
 
 class HIDP_CAPS(ctypes.Structure):
-    """The leading fields we read; the rest of the struct is left alone."""
+    """Die ganze Struktur, nicht bloess ihre Anfangsfelder.
+
+    ``HidP_GetCaps`` schreibt die *vollstaendige* Struktur - 64 Byte, in
+    neueren Windows-Fassungen 66 - und fragt nicht, wie gross das Gegenueber
+    ist. Eine Fassung, die nur die fuenf gelesenen Felder fuehrt, liess den
+    Aufruf deshalb weit hinter das Ende unseres Objekts schreiben. So ein
+    Fehler zeigt sich nicht am Ort, an dem er entsteht: Er zerstoert den
+    Nachbarn im Speicher, und der Interpreter merkt es erst, wenn er spaeter
+    von sich aus aufraeumt. Genau das war der Absturz beim Fensterbauen.
+    """
 
     _fields_ = [
         ("UsagePage", wintypes.WORD),
@@ -108,16 +117,28 @@ class HIDP_CAPS(ctypes.Structure):
         ("InputReportByteLength", wintypes.WORD),
         ("OutputReportByteLength", wintypes.WORD),
         ("FeatureReportByteLength", wintypes.WORD),
+        # Der Rest sind Kapazitaetszahlen, die wir nicht lesen. Der Platz muss
+        # trotzdem da sein, und zwar mehr, als jede Windows-Fassung schreibt.
+        ("Reserve", wintypes.WORD * 48),
     ]
 
 
 class OVERLAPPED(ctypes.Structure):
+    """Der Begleiter einer Anzeige, die noch läuft.
+
+    In der echten Struktur liegen die Felder direkt beieinander: nach den
+    beiden Zählern kommt *ein* gemeinsamer Platz für Zeiger und Versatz, danach
+    erst die Ereigniskennung. Wer an die Stelle des gemeinsamen Platzes einen
+    eigenen Zeiger setzt, den Windows nicht kennt, schiebt die Kennung eine
+    Stufe höher — und wartet dann auf ein Ereignis, das nie gesetzt wird, weil
+    Windows an der richtigen Stelle eine leere Kennung vorfand.
+    """
+
     _fields_ = [
         ("Internal", ctypes.POINTER(ctypes.c_ulong)),
         ("InternalHigh", ctypes.POINTER(ctypes.c_ulong)),
         ("Offset", wintypes.DWORD),
         ("OffsetHigh", wintypes.DWORD),
-        ("Pointer", ctypes.c_void_p),
         ("hEvent", wintypes.HANDLE),
     ]
 
