@@ -354,7 +354,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.2 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.3 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.

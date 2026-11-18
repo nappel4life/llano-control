@@ -77,3 +77,17 @@ def not_found(what: str) -> DeviceNotFound:
         f"llano V12 Ultra nicht gefunden. Ist er eingesteckt (USB {usb_id()})?"
         + (f" {what}" if what else "")
     )
+
+
+def wide_text(puffer: bytes, ab: int = 4) -> str:
+    """Der Text in einem UTF-16-Puffer, den Windows geschrieben hat.
+
+    Ab ``ab`` steht der Text, beendet von einem weiten Nullzeichen. Nach zwei
+    Nullbyte zu suchen ist der klassische Griff ins Leere: Bei reinem ASCII ist
+    das obere Byte jedes Zeichens schon null und liegt direkt neben dem unteren
+    Byte des Endzeichens, die Suche endet also ein Byte zu frueh, und der
+    Rest ist ungerade und nicht mehr lesbar. Auf einem echten Windows sah das
+    aus wie "dieser Rechner hat gar keine Eingabegeraete". Ganze Zeichen zu
+    lesen kann schief nicht gehen.
+    """
+    return puffer[ab:].decode("utf-16-le", "ignore").split("\x00", 1)[0]

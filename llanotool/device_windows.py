@@ -21,7 +21,8 @@ import re
 from ctypes import wintypes
 
 from . import protocol
-from .device_common import PRODUCT_ID, VENDOR_ID, DeviceNotFound, usb_id
+from .device_common import (PRODUCT_ID, VENDOR_ID, DeviceNotFound, usb_id,
+                            wide_text)
 
 PERMISSION_HINT = (
     "Die Windows-Oberflaeche des Herstellers (MythCool) haelt das Geraet "
@@ -276,14 +277,13 @@ def _interface_detail(info, interface_data, fehler=None) -> str | None:
     )
     pfad = None
     if bekommen:
-        raw = buf.raw[4:size]
-        end = raw.find(b"\x00\x00")
-        if end < 0:
-            end = len(raw)
-        try:
-            pfad = raw[:end].decode("utf-16-le") or None
-        except UnicodeDecodeError:
-            pfad = None
+        # The text ends in a wide NUL, and only a wide one. Looking for two
+        # zero bytes instead lands one byte early on every plain ASCII path: a
+        # character's own zero high byte sits right next to the terminator's
+        # low byte, so the slice came out odd-sized and undecodable -- which
+        # looked exactly like "this machine has no HID devices at all".
+        # Deciding on whole characters cannot misalign.
+        pfad = wide_text(buf.raw) or None
     if pfad is None and fehler is not None:
         fehler.update({
             "aufgerufen": "ok" if bekommen else f"abgelehnt (Fehler {_last_error()})",
@@ -307,10 +307,7 @@ def _raw_device_name(handle) -> str | None:
     if got in (0, UINT_FAILURE):
         return None
     taken = min(got, needed.value) or got
-    try:
-        return buf.raw[:taken].decode("utf-16-le", "ignore").split("\x00")[0] or None
-    except UnicodeDecodeError:
-        return None
+    return wide_text(buf.raw[:taken], 0) or None
 
 
 def raw_input_scan() -> tuple[int, int, list[str]]:
@@ -539,10 +536,7 @@ def product_name(handle: Handle) -> str | None:
     buf = ctypes.create_string_buffer(256)
     if not hid.HidD_GetProductString(handle.raw, buf, 256):
         return None
-    try:
-        return buf.raw.decode("utf-16-le").split("\x00")[0].strip() or None
-    except UnicodeDecodeError:
-        return None
+    return wide_text(buf.raw, 0).strip() or None
 
 
 def describe_nodes() -> list[dict]:
