@@ -247,6 +247,36 @@ jobs:
           ls -l out
           test -s out/llano-control-*-windows-amd64.exe
 
+      - name: Installer wirklich installieren
+        # Ausprobiert wurde bisher immer die gebaute Mappe aus dist/, nie das,
+        # was wirklich heruntergeladen und doppelgeklickt wird. Dazwischen
+        # liegt der Installer, und was der beim Aktualisieren an alter Datei
+        # liegen laesst oder zuwenig mitnimmt, zeigt sich erst beim Nutzer -
+        # ohne Fenster und ohne eine einzige geschriebene Datei.
+        shell: pwsh
+        run: |
+          $setup = (Get-Item out/llano-control-*-windows-amd64.exe).FullName
+          $p = Start-Process $setup -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -Wait -PassThru
+          "Rueckgabe des Installers: $($p.ExitCode)"
+          if ($p.ExitCode -ne 0) { exit 1 }
+          $programme = "C:\Program Files\llano-control"
+          & "$programme\llano.exe" selftest
+          "Rueckgabe der Selbstdiagnose: $LASTEXITCODE"
+          $protokoll = "$env:RUNNER_TEMP\install-oberflaeche.txt"
+          $oberflaeche = Start-Process "$programme\llano-control.exe" -ArgumentList "--minimized" -PassThru -RedirectStandardError $protokoll
+          if ($oberflaeche.WaitForExit(40000)) {
+            "Die installierte Oberflaeche hat von sich aus beendet:"
+            Get-Content $protokoll
+            Get-Content "$env:APPDATA\llano\oberflaeche.txt" -ErrorAction SilentlyContinue
+            Get-Content "$env:APPDATA\llano\oberflaeche-fehler.txt" -ErrorAction SilentlyContinue
+            exit 1
+          }
+          $oberflaeche.Kill()
+          if (-not (Test-Path "$env:APPDATA\llano\config.json")) {
+            "Die installierte Oberflaeche hat keine Einstellungsdatei hinterlassen."
+          }
+          "Die installierte Oberflaeche lief nach 40 Sekunden - gut."
+
       - name: Dateien fuers Verzeichnis
         uses: actions/upload-artifact@v4
         with:

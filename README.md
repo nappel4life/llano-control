@@ -110,22 +110,42 @@ Zwei Unterschiede zu Linux, die man kennen sollte:
 * **Die Hersteller-Software.** MythCool hält das Gerät gelegentlich exklusiv
   belegtt. Wenn „kein Zugriff“ erscheint: MythCool beenden.
 
-### CPU-Temperatur unter Windows (HWiNFO)
+### CPU-Temperatur unter Windows (HWiNFO oder LibreHardwareMonitor)
 
 Wer die Kurve an die Prozesstemperatur hängen will, braucht unter Windows
 irgendeine Quelle dafür – die gibt es ohne Kernel-Treiber nicht, und einen
-Treiber will hier niemand installieren. Der Weg ist deshalb **HWiNFO**: Es ist
-kostenlos, hält seine Messwerte in einem Speicherblock, den jedes andere
-Programm mitlesen darf, und braucht dafür nur den eingeschalteten
+Treiber will hier niemand installieren. Eine Bibliothek allein reicht übrigens
+auch nicht: Temperaturfühler im Prozessor hängen an modelspezifischen
+Registern, und die darf nur ein Treiber lesen. Was also zählt, ist ein
+Programm, das diesen Treiber schon mitbringt und seine Werte für andere
+öffnet. Zwei kostenlose Wege sind eingebaut; **beide dürfen gleichzeitig
+laufen**, die Werte beider erscheinen in der Auswahl.
+
+**Weg 1 – HWiNFO.** Das Programm hält alle Messwerte in einem Speicherblock,
+den jedes andere Programm mitlesen darf; es braucht dafür nur den eingeschalteten
 *Shared Memory Support* (Einstellungen → Main Settings, standardmäßig an).
 
 1. [HWiNFO](https://www.hwinfo.com/download/) installieren und starten – die
-  -installierbare Variante, nicht die portable aus dem Store.
-2. Dieses Programm neu starten (oder auf die nächste Abfrage warten, drei
-   Sekunden genügen).
+   installierbare Variante, nicht die portable aus dem Store.
+2. Drei Sekunden warten (so oft wird nachgelesen) oder das Programm neu starten.
 3. `llano sensors` zeigt jetzt die Werte mit der Kennung `hwiinfo:`, in der
-   Oberfläche unter „Temperaturen“ – etwa `hwiinfo:CPU (Package)`. Einfach
-   ankreuzen, die Kurve folgt dann dem Prozessor.
+   Oberfläche unter „Temperaturen“ – etwa `hwiinfo:CPU (Package)`. Ankreuzen,
+   und die Kurve folgt dem Prozessor.
+
+**Weg 2 – LibreHardwareMonitor.** Der bringt einen eigenen Treiber mit und kann
+auf dem Rechner einen kleinen Web-Server anlaufen lassen, über den wir die
+Werte abfragen.
+
+1. [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases)
+   installieren (die `Setup.exe`, damit der Treiber mit registriert wird).
+2. *Options → Remote Web Server* einschalten, Port 8085 stehen lassen.
+3. Wieder drei Sekunden warten: Die Werte kommen mit der Kennung `lhm:`, zum
+   Beispiel `lhm:Intel Core i7 CPU Package`.
+
+Der zweite Weg hat einen praktischen Vorteil: Er funktioniert **auch dann, wenn
+die Messhilfe als Administrator läuft** – bei HWiNFO ist für ein normales
+Programm dann nichts mehr zu lesen. Ist der Port ein anderer, hilft die
+Umgebungsvariable `LLANO_LHM=http://127.0.0.1:8085/data.json`.
 
 Drei Dinge, die dabei auffallen können und absichtlich gemeldet werden:
 
@@ -403,7 +423,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.6 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.7 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.

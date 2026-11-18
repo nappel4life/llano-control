@@ -69,16 +69,21 @@ _KOPF_AB_AUSGERICHTET = 16
 
 @dataclass
 class Messwert:
-    """Ein Temperaturwert, so wie HWiNFO ihn anbietet."""
+    """Ein Temperaturwert, so wie eine der fremden Quellen ihn anbietet.
+
+    Die Quelle steht mit drin, weil HWiNFO und LibreHardwareMonitor dieselben
+    Chips messen koennen und beide in der Auswahl auftauchen sollen.
+    """
 
     gruppe: str
     marke: str
     wert: float
+    quelle: str = "hwiinfo"
 
     @property
     def kennung(self) -> str:
         """Der Schluessel, unter dem die Kurve diesen Wert findet."""
-        return f"hwiinfo:{self.marke}"
+        return f"{self.quelle}:{self.marke}"
 
 
 def text(puffer: bytes, ab: int, laenge: int) -> str:
@@ -164,16 +169,13 @@ def messwerte(puffer: bytes, kerne: bool | None = None) -> list[Messwert]:
         if art != ART_TEMPERATUR or not UNTERE_SCHWELLE < wert < OBERE_SCHWELLE:
             continue
         gruppe = namen[gruppen_nr] if gruppen_nr < len(namen) else ""
-        marke = text(puffer, boden + 140, 128) or text(puffer, boden + 12, 128)
-        if not marke:
+        angeschrieben = text(puffer, boden + 140, 128) or text(puffer, boden + 12, 128)
+        if not angeschrieben:
             continue
-        out.append(Messwert(gruppe=gruppe, marke=_marke(gruppe, marke), wert=wert))
+        out.append(Messwert(gruppe=gruppe, marke=marke(gruppe, angeschrieben),
+                            wert=wert))
 
-    if kerne is None:
-        kerne = not any(_GESAMT_WERT.search(wert.marke) for wert in out)
-    if not kerne:
-        out = [wert for wert in out if not _KERN_WERT.search(wert.marke)] or out
-    return out
+    return ohne_einzelkerne(out, kerne)
 
 
 # „CPU Core #4“ ist ein Einzelkern, „CPU (Package)“ der Wert, den eine Kurve
@@ -182,12 +184,26 @@ _KERN_WERT = re.compile(r"core\s*#?\d+", re.IGNORECASE)
 _GESAMT_WERT = re.compile(r"\b(package|average|avg|total|die)\b", re.IGNORECASE)
 
 
-def _marke(gruppe: str, marke: str) -> str:
+def ohne_einzelkerne(werte: list[Messwert], kerne: bool | None = None) -> list[Messwert]:
+    """Die einzelnen Kerne weg, sobald es einen Gesamtwert gibt.
+
+    Vierzig Zeilen machen die Auswahl unbrauchbar, und fuer eine Kuehlerkurve
+    ist der Gesamtwert die Zahl, die zaehlt. Bei den Quellen von ausserhalb
+    gilt dasselbe wie bei hwmon unter Linux.
+    """
+    if kerne is None:
+        kerne = not any(_GESAMT_WERT.search(wert.marke) for wert in werte)
+    if kerne:
+        return list(werte)
+    return [wert for wert in werte if not _KERN_WERT.search(wert.marke)] or list(werte)
+
+
+def marke(gruppe: str, marke: str) -> str:
     """Ein Name, der fuer sich steht - „CPU“ und „Package“ zusammen ergibt mehr.
 
-    HWiNFO benennt Gruppen und Werte je nach Mainboard unterschiedlich gut.
-    Steht die Gruppe schon im Wert, wird sie nicht zweimal hintereinander
-    gezeigt.
+    HWiNFO und LibreHardwareMonitor benennen Gruppen und Werte je nach
+    Mainboard unterschiedlich gut. Steht die Gruppe schon im Wert, wird sie
+    nicht zweimal hintereinander gezeigt.
     """
     marke = " ".join(marke.split())
     gruppe = " ".join(gruppe.split())

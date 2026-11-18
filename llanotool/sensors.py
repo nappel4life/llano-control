@@ -31,6 +31,7 @@ import subprocess
 import time
 
 from .sensors_hwiinfo import HWiNFO
+from .sensors_lhm import LHM
 
 IS_WINDOWS = os.name == "nt"
 
@@ -257,6 +258,17 @@ def _zone_failure_text(stderr: str) -> str:
     return f"Die Windows-Wartungsschnittstelle meldete: {text[:180]}"
 
 
+# Beide Messhilfen sind kostenlos und beide tun dem Kuehler keinen Weh: Es geht
+# nur darum, an die Prozesstemperaturen zu kommen, die Windows ohne Treiber nicht
+# herausgibt. Deshalb einer Satz fuer beide Faelle statt zweier Hinweise.
+TEXT_HILFE_FEHLT = (
+    "Ohne Messhilfe fehlt die Prozessortemperatur: HWiNFO laufen lassen "
+    "(Einstellungen 'Shared Memory Support') oder LibreHardwareMonitor "
+    "(Optionen 'Remote Web Server'). Ohne eine von beiden gibt Windows die "
+    "Prozesstemperaturen nicht her. Laeuft die Messhilfe als Administrator, muss "
+    "auch dieses Programm als Administrator laufen.")
+
+
 class Sensors:
     """Collects every temperature the fan curve may use."""
 
@@ -264,11 +276,13 @@ class Sensors:
         self._nvidia = NvidiaGpu()
         self._zones = WindowsThermalZones() if IS_WINDOWS else None
         self._hwiinfo = HWiNFO() if IS_WINDOWS else None
+        self._lhm = LHM() if IS_WINDOWS else None
 
     def read(self, collapse: bool = True) -> dict[str, float]:
         if IS_WINDOWS:
             temps = dict(self._zones.read())      # type: ignore[union-attr]
             temps.update(self._hwiinfo.lesen())   # type: ignore[union-attr]
+            temps.update(self._lhm.lesen())       # type: ignore[union-attr]
         else:
             temps = read_hwmon()
         gpu = self._nvidia.read()
@@ -279,21 +293,27 @@ class Sensors:
     def note(self) -> str | None:
         """What a missing temperature list means, if anything.
 
-        Unter Windows sind die beiden moeglichen Quellen getrennte Wege: die
-        Warmzezonen des Betriebssystems und der Speicherblock von HWiNFO. Was
-        davon fehlt, wird gesagt - beides hat seinen eigenen Grund.
+        Unter Windows sind dafuer drei Wege im Kopf: die Waermezonen des
+        Betriebssystems, der Speicherblock von HWiNFO und die Anfrage an
+        LibreHardwareMonitor. Was fehlt, wird gesagt - jeder Grund hat seine
+        eigene Antwort, und zwei Hinweise auf einmal waeren laestig.
         """
         meldungen = []
         if self._zones is not None and not self._zones.read():
             meldungen.append(self._zones.reason)
-        if self._hwiinfo is not None:
-            stillstand = self._hwiinfo.stillstand
-            if stillstand:
-                meldungen.append(stillstand)      # HWiNFO laeuft, misst aber nicht mehr
-            elif not self._hwiinfo.lesen() and not self._hat_cpu_temperatur():
-                # Der Hinweis auf HWiNFO ist nur so lange interessant, wie die
-                # Prozessorkaelte ueberhaupt unbekannt ist.
-                grund = self._hwiinfo.hinweis()
+
+        hilfen = [hilfe for hilfe in (self._hwiinfo, self._lhm) if hilfe is not None]
+        stillstand = [hilfe.stillstand for hilfe in hilfen if hilfe.stillstand]
+        if stillstand:
+            # Eine Messhilfe laeuft, traegt aber nichts mehr bei. Das ist die
+            # Nachricht, die zaehlt - egal, was ausserdem fehlt.
+            meldungen += stillstand
+        elif hilfen and not self._hat_cpu_temperatur():
+            stille = [hilfe for hilfe in hilfen if not hilfe.lesen()]
+            if len(stille) == len(hilfen):
+                meldungen.append(TEXT_HILFE_FEHLT)
+            elif stille:
+                grund = stille[0].hinweis()     # die andere Seite liefert ja
                 if grund:
                     meldungen.append(grund)
         return "  ".join(m for m in meldungen if m) or None
@@ -334,6 +354,7 @@ def _pretty(key: str) -> str:
         "nouveau": "GPU (NVIDIA)",
         "thermalzone": "Wärmezone (Windows)",
         "hwiinfo": "HWiNFO",
+        "lhm": "LibreHardwareMonitor",
     }
     base = chip_names.get(chip, chip)
     if not label or label == "total":

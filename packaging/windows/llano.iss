@@ -59,6 +59,17 @@ Name: "desktopicon";  Description: "Verknüpfung auf dem Desktop anlegen"
 Name: "autostart";    Description: "Bei jeder Anmeldung starten - der Kühler hält die Kurve auch ohne Fenster"
 Name: "pathicon";     Description: "llano.exe im Suchpfad anmelden - dann genügt `llano status` in jedem Eingabefenster"; Flags: unchecked
 
+[InstallDelete]
+; Ein Update ueberschreibt gleichnamige Dateien, aber was die alte Fassung
+; zusaetzlich im Gepaeck hatte, bleibt stehen. Bei einem verpackten Programm
+; ist das kein Kleinstd: Zwei Qt-Bibliotheken in einem Ordner, und die
+; Oberflaeche startet gar nicht mehr - ohne Fenster, ohne Meldung und ohne
+; eine einzige geschriebene Datei. Also vor dem Kopieren sauber machen.
+Type: filesandordirs; Name: "{app}\_internal"
+Type: files; Name: "{app}\llano-control.exe"
+Type: files; Name: "{app}\llano.exe"
+Type: files; Name: "{app}\llano-rs.exe"
+
 [Files]
 Source: "..\..\dist\llano-control\*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
