@@ -261,7 +261,11 @@ jobs:
           if ($p.ExitCode -ne 0) { exit 1 }
           $programme = "C:\Program Files\llano-control"
           & "$programme\llano.exe" selftest
-          "Rueckgabe der Selbstdiagnose: $LASTEXITCODE"
+          "Rueckgabe der Selbstdiagnose: $LASTEXITCODE - ohne Kuehler am Bauwagen ist 1 hier richtig"
+          # Die Powershell-Schale der Bauautomatik endet mit der letzten
+          # Rueckgabe, und die Selbstdiagnose meldet ohne Geraet 1 - ohne diese
+          # Zeile schlüge ein gelungener Install als Fehler an.
+          $global:LASTEXITCODE = 0
           $protokoll = "$env:RUNNER_TEMP\install-oberflaeche.txt"
           $oberflaeche = Start-Process "$programme\llano-control.exe" -ArgumentList "--minimized" -PassThru -RedirectStandardError $protokoll
           if ($oberflaeche.WaitForExit(40000)) {
