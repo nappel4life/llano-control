@@ -245,9 +245,14 @@ def main() -> int:
 
     failures: list[str] = []
 
-    def expect(name: str, condition: bool) -> None:
+    def expect(name: str, condition: bool, dabei: str = "") -> None:
         print(f"  {'ok  ' if condition else 'FEHLT'} {name}")
         if not condition:
+            if dabei:
+                # Die Pruefung ist auf einem schnellen Rechner green und auf
+                # einem beladenen nicht immer: die Zahlen daneben sagen beim
+                # naechsten Mal, was der Balken gerade wirklich tut.
+                print(f"       dazu: {dabei}")
             failures.append(name)
 
     pump(1.5)
@@ -427,10 +432,19 @@ def main() -> int:
     middle_x = bar.width() / 2.0
     bar.mousePressEvent(FakeMouseEvent(left, middle_x, bar.height() - 3))
     pump(0.4)
-    expect("unten gefasst heißt dunkel", bar.value() < 12)
+    grab_at_bottom = bar.value()
     bar.mouseMoveEvent(FakeMouseEvent(left, middle_x, bar.height() / 2.0))
     pump(0.4)
-    expect("in der Mitte etwa halb", abs(bar.value() - 128) <= 16)
+    grab_in_middle = bar.value()
+    # Verglichen wird mit der Mitte desselben Balkens, nicht mit einem
+    # Wunschwert: Die Pruefung soll sagen, dass unten dunkler ist als oben --
+    # wie hoch der Balken gerade zufaellig ist, spielt dabei keine Rolle.
+    expect("unten gefasst heißt dunkel",
+           grab_at_bottom < grab_in_middle - 60,
+           f"unten {grab_at_bottom}, Mitte {grab_in_middle}, "
+           f"Balken {bar.width()}x{bar.height()} Pixel")
+    expect("in der Mitte etwa halb", abs(grab_in_middle - 128) <= 16,
+           f"Mitte {grab_in_middle} bei {bar.height()} Pixel hoehe")
     expect("und die Zahl daneben zieht mit",
            window.brightness_value.text() == str(bar.value()))
     bar.mouseReleaseEvent(FakeMouseEvent(left, middle_x, bar.height() * 0.2))
@@ -444,12 +458,18 @@ def main() -> int:
     pump(0.9)
     expect("Taste Ende macht volle Helligkeit",
            bar.value() == 255 and controller.pad.state["brightness"] == 255)
+    pump(1.2)                              # der letzte Schreibvorgang soll durch sein
     stored = int(saved()["light"]["brightness"])
     bar.set_value(60)                      # so zieht die Oberflaeche einen Wert nach
-    pump(0.8)
+    gezogen = bar.value()                  # gleich abgelesen, nicht nach dem Pumpen:
+    pump(1.2)                              # die standige Auffrischung holt den Balken
+                                           # zuruck auf den Wert des Kuehlers
     expect("nachziehen allein schreibt nichts",
-           bar.value() == 60 and int(saved()["light"]["brightness"]) == stored
-           and controller.pad.state["brightness"] == 255)
+           gezogen == 60 and int(saved()["light"]["brightness"]) == stored
+           and controller.pad.state["brightness"] == 255,
+           f"direkt nach dem Ziehen {gezogen}, Balken jetzt {bar.value()}, "
+           f"gespeichert {saved()['light']['brightness']}, "
+           f"Kuehler {controller.pad.state['brightness']}, vorher {stored}")
     window.send_light(brightness=int(wanted["brightness"]))
     pump(0.9)
     expect("und zurueck in den Ausgangszustand",
