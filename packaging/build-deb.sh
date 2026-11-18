@@ -68,8 +68,11 @@ cp "$ROOT/contrib/70-llano.rules" "$PKG/usr/lib/udev/rules.d/70-llano.rules"
 # Die AppStream-Datei ist das, was ein Softwarezentrum ueber das Programm
 # erzaehlt: Kurzbeschreibung, Lizenz, ein Bild.
 source "$ROOT/packaging/appdata.sh"
+# Der Dateiname muss zur Kennung in der Datei passen, sonst meckert die
+# Prüfung im Softwarezentrum.
+APPSTREAM_ID="io.github.nappel4life.llano-control"
 write_appdata "$ROOT/contrib/llano-control.appdata.xml" \
-    "$PKG/usr/share/metainfo/$NAME.appdata.xml" "$VERSION"
+    "$PKG/usr/share/metainfo/$APPSTREAM_ID.metainfo.xml" "$VERSION"
 install -m 644 "$ROOT/LICENSE" "$PKG/usr/share/doc/$NAME/copyright"
 gzip -9nc "$ROOT/README.md" > "$PKG/usr/share/doc/$NAME/README.md.gz"
 

@@ -40,8 +40,12 @@ cp "$ROOT/assets/llano.png" "$APPDIR/.DirIcon"
 
 # Damit ein Softwarezentrum die AppImage nicht als namenlos zeigt.
 source "$ROOT/packaging/appdata.sh"
+# Der Dateiname muss zur Kennung in der Datei passen, und die Pruefung sucht
+# die Desktop-Datei unter usr/share/applications - in einer AppImage liegt sie
+# zusaetzlich eine Ebene hoher.
+APPSTREAM_ID="io.github.nappel4life.llano-control"
 write_appdata "$ROOT/contrib/llano-control.appdata.xml" \
-    "$APPDIR/usr/share/metainfo/$NAME.appdata.xml" "$VERSION"
+    "$APPDIR/usr/share/metainfo/$APPSTREAM_ID.metainfo.xml" "$VERSION"
 
 cat > "$APPDIR/$NAME.desktop" <<'DESKTOP'
 [Desktop Entry]
@@ -55,6 +59,9 @@ Terminal=false
 Categories=System;Settings;HardwareSettings;
 StartupNotify=true
 DESKTOP
+
+# Dieselbe Datei eine Ebene tiefer: die AppStream-Pruefung sucht dort.
+cp "$APPDIR/$NAME.desktop" "$APPDIR/usr/share/applications/$NAME.desktop"
 
 cat > "$APPDIR/AppRun" <<'APPRUN'
 #!/usr/bin/env bash
