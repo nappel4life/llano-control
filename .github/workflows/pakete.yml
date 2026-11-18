@@ -35,6 +35,12 @@ jobs:
       - name: Protokoll, Kurve und Einstellungen
         run: python -m unittest discover -s tests -v
 
+      - name: Byte-Folien passen noch zum Protokoll
+        # Die Rust-Fassung prueft gegen tests/byte-vektoren.json. Aendert sich
+        # das Python-Protokoll, muss die Datei mit erzeugt und mitgeschickt
+        # werden - sonst prueft Rust ein Protokoll, das es nicht mehr gibt.
+        run: python tools/protokoll-vektoren.py --pruefen
+
       - name: Was Rechner und Kuehler zusammen koennen
         run: python -m llanotool selftest
         continue-on-error: true          # ohne eingesteckten Kuehler kein Fehler
@@ -56,6 +62,32 @@ jobs:
           name: pruefbild
           path: /tmp/oberflaeche*.png
           if-no-files-found: ignore
+
+  rust:
+    name: Rust-Unterbau
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      # Der Bauwagen bringt Rust mit; rustfmt und clippy kommen selten vor.
+      - name: Werkzeuge
+        run: rustup component add rustfmt clippy
+
+      - name: Form und Warnungen
+        working-directory: rust
+        run: |
+          cargo fmt --all -- --check
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Pruefungen
+        working-directory: rust
+        run: cargo test
+
+      - name: Selbstpruefung auf dem Bauwagen
+        # Der Bauwagen hat keinen Kuehler eingesteckt; dass das Programm
+        # trotzdem durchlaeuft und den fehlenden Kuehler benennt, ist die Aussage.
+        working-directory: rust
+        run: cargo run -q -- selftest || true
 
   linux:
     name: Linux-Pakete
