@@ -24,14 +24,17 @@ und ein Windows-Installationsprogramm, siehe [Einbau](#einbau).
 ## Einbau
 
 Fertige Dateien liegen bei jeder
-[Veröffentlichung](../../releases "alle Versionen") bereit:
+[Veröffentlichung](../../releases "alle Versionen") bereit — die
+[neueste](../../releases/latest "neueste Fassung") hat immer diese vier Stücke.
+`<Version>` ist dabei die Zahl im Namen, seit jeher auch die Zahl, die
+`llano --version` sagt:
 
 | Datei | für | wie |
 | --- | --- | --- |
-| `llano-control-1.0.0-windows-amd64.exe` | Windows 10 und 11 | ausführen, danach „llano Control“ im Startmenü |
-| `llano-control_1.0.0_all.deb` | Debian, Ubuntu, Mint | `sudo apt install ./llano-control_1.0.0_all.deb` |
-| `llano-control-1.0.0-x86_64.AppImage` | fast jede Distribution | `chmod +x` und doppelklicken |
-| `llano-control-1.0.0-linux-x86_64.tar.gz` | Distributionen ohne libfuse2 | entpacken, `./llano-gui` |
+| `llano-control-<Version>-windows-amd64.exe` | Windows 10 und 11 | ausführen, danach „llano Control“ im Startmenü |
+| `llano-control_<Version>_all.deb` | Debian, Ubuntu, Mint | `sudo apt install ./llano-control_<Version>_all.deb` |
+| `llano-control-<Version>-x86_64.AppImage` | fast jede Distribution | `chmod +x` und doppelklicken |
+| `llano-control-<Version>-linux-x86_64.tar.gz` | Distributionen ohne libfuse2 | entpacken, `./llano-gui` |
 
 Das `.deb` bringt `llano` nach `/usr/bin` und legt ausser Menüeintrag und
 Symbol auch die udev-Regel ins System — nach dem Einstecken gehört der Kühler
@@ -344,7 +347,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.0.0 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.0.1 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.
