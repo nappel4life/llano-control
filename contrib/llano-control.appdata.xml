@@ -8,7 +8,10 @@
   die Datei in jeder Bauumgebung gleich bleibt.
 -->
 <component type="desktop-application">
-  <id>llano-control.desktop</id>
+  <!-- Die Kennung muss umgekehrt aufgebaut sein (So laeuft das bei
+     Programmzentren); der Name der Desktop-Datei steht daneben. -->
+  <id>io.github.nappel4life.llano-control</id>
+  <launchable type="desktop-id">llano-control.desktop</launchable>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>llano Control</name>
@@ -46,8 +49,11 @@
 
   <url type="homepage">https://github.com/nappel4life/llano-control</url>
   <url type="bugtracker">https://github.com/nappel4life/llano-control/issues</url>
-  <url type="help">https://github.com/nappel4life/llano-control#lesung</url>
-  <developer_name>nappel4life</developer_name>
+  <url type="help">https://github.com/nappel4life/llano-control#einbau</url>
+
+  <developer id="io.github.nappel4life">
+    <name>nappel4life</name>
+  </developer>
 
   <provides>
     <binary>llano</binary>
