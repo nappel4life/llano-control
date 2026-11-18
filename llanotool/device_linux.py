@@ -118,8 +118,22 @@ def read_input(fd: int, timeout: float) -> bytes | None:
 
 
 def describe_nodes() -> list[dict]:
-    """Cheap listing used by the CLI."""
-    return [
-        {"node": node, "readable": os.access(node, os.R_OK | os.W_OK)}
-        for node in find_device_nodes()
-    ]
+    """Cheap listing used by the CLI.
+
+    ``grund`` is the sentence to show when a node is there but cannot be
+    opened; an empty string means nothing to explain.
+    """
+    listing = []
+    for node in find_device_nodes():
+        kann = os.access(node, os.R_OK | os.W_OK)
+        listing.append({
+            "node": node,
+            "readable": kann,
+            "grund": "" if kann else PERMISSION_HINT.strip() or "Keine Rechte an der Datei.",
+        })
+    return listing
+
+
+def interface_count() -> int:
+    """Alle hidraw-Knoten des Rechners, auch die von Tastatur und Maus."""
+    return len(glob.glob("/sys/class/hidraw/hidraw*"))

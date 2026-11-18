@@ -294,7 +294,7 @@ def cmd_selftest(args) -> int:
     import platform
 
     from . import config as _cfg
-    from .loop import lock_path
+    from .loop import DeviceLock, lock_path, read_locked_pid
 
     print(f"Betriebssystem : {platform.system()} {platform.release()} "
           f"({platform.machine()})")
@@ -302,6 +302,17 @@ def cmd_selftest(args) -> int:
     print(f"Gerateweg      : {backend.__name__.split('.')[-1]}")
     print(f"Konfiguration  : {_cfg.config_path()}")
     print(f"Sperrdatei     : {lock_path()}")
+
+    # Dieselbe Datei wie bei der Rust-Fassung, und nur sie verhindert, dass zwei
+    # Steuerungen dem Kuehler gleichzeitig ihre Statusanfrage schicken. Laeuft
+    # schon eine, sind ihre Meldungen die nuetzlicheren als jede Geraetezeit.
+    versuch = DeviceLock()
+    if versuch.acquire(exclusive_request=False):
+        print("Andere Fassung : keine - dieses Programm ist allein am Geraet")
+        versuch.release()
+    else:
+        print(f"Andere Fassung : laeuft schon (PID {read_locked_pid(lock_path()) or '?'})"
+              " - ihm gehoert das Geraet")
 
     ok = True
     try:
@@ -313,6 +324,12 @@ def cmd_selftest(args) -> int:
               "Kommandozeile geht trotzdem")
 
     nodes = describe_nodes()
+    zaehlen = getattr(backend, "interface_count", None)
+    if zaehlen is not None:
+        # Die Zahl trennt die beiden Faelle: der Kuehler taucht in keiner
+        # Aufzaehlung auf, oder er taucht auf und laesst sich nicht oeffnen.
+        print(f"Schnittstellen : {zaehlen()} am Rechner, davon {len(nodes)} mit der "
+              f"Kennung {usb_id()}")
     if not nodes:
         ok = False
         print(f"Kuehler        : keiner gefunden (USB {usb_id()})")
@@ -322,6 +339,8 @@ def cmd_selftest(args) -> int:
                 ok = False
             print(f"Kuehler        : {node['node']}"
                   f"{' - zugaenglich' if node['readable'] else ' - KEIN ZUGRIFF'}")
+            if node.get("grund"):
+                print(f"                 : {node['grund']}")
 
     if any(node["readable"] for node in nodes):
         try:

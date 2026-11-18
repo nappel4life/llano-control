@@ -21,7 +21,7 @@ import re
 from ctypes import wintypes
 
 from . import protocol
-from .device_common import PRODUCT_ID, VENDOR_ID, DeviceNotFound, not_found, usb_id
+from .device_common import PRODUCT_ID, VENDOR_ID, DeviceNotFound, usb_id
 
 PERMISSION_HINT = (
     "Die Windows-Oberflaeche des Herstellers (MythCool) haelt das Geraet "
@@ -248,7 +248,14 @@ def _raw_open(path: str, overlapped: bool = False):
     if not handle or handle == INVALID_HANDLE_VALUE:
         err = _last_error()
         if err == ERROR_FILE_NOT_FOUND:
-            raise not_found("")
+            # Der Pfad stand eben noch in der Aufzaehlung. Entweder ist der
+            # Kuehler gerade weg, oder ein anderes Programm haelt die
+            # Schnittstelle so, dass Windows sie nicht mehr hergibt. Beides
+            # sieht gleich aus, deshalb steht die Zahl dabei.
+            raise DeviceNotFound(
+                f"Die Schnittstelle ist nicht mehr da (Windows-Fehler {err}). "
+                f"{PERMISSION_HINT}"
+            )
         if err == ERROR_ACCESS_DENIED:
             raise DeviceNotFound(f"Kein Zugriff auf den Kuehler. {PERMISSION_HINT}")
         raise DeviceNotFound(
@@ -383,16 +390,33 @@ def product_name(handle: Handle) -> str | None:
 
 
 def describe_nodes() -> list[dict]:
-    """Listing for the CLI: a path is "readable" when it can be opened."""
+    """Listing for the CLI: a path is "readable" when it can be opened.
+
+    ``grund`` carries the sentence that explains a failed open. On Windows the
+    same path can fail three different ways -- another program holds the
+    interface, the pad was unplugged a second ago, or the ids turned out to be
+    someone else's -- and the three want three different answers. Without the
+    reason a selftest can only say "no access" and everyone guesses.
+    """
     out = []
     for path in find_paths():
-        readable = False
+        grund = ""
         try:
             handle = open_path(path)
-        except DeviceNotFound:
+        except DeviceNotFound as exc:
             handle = None
+            grund = str(exc)
         if handle:
-            readable = True
+            grund = ""
             close(handle)
-        out.append({"node": path, "readable": readable})
+        out.append({"node": path, "readable": bool(handle), "grund": grund})
     return out
+
+
+def interface_count() -> int:
+    """Every HID interface of this machine, keyboard and mouse included.
+
+    Splits "the pad is not in the list at all" from "it is in the list but
+    cannot be opened", which is the question a Windows report has to answer.
+    """
+    return len(_interface_paths())

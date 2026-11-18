@@ -1,9 +1,9 @@
 //! Kommandozeile der Rust-Fassung.
 //!
-//! Bewusst **nur lesend**, solange nicht jeder Schreibweg am echten Kuehler
-//! nachgemessen ist: Ein Befehl, den niemand am Geraet geprueft hat, ist kein
-//! Fortschritt, sondern ein Risiko fuer Luefter und Anzeige. Bis dahin schreibt
-//! die Python-Fassung.
+//! Kann dasselbe wie die Python-Fassung auf der Kommandozeile: lesen, Stufe,
+//! Beleuchtung, Kurve, Dienst. Beide Fassungen teilen sich Einstellungsdatei
+//! und Sperrdatei, weil das Geraet keine zweite Steuerung vertragt - wer als
+//! zweiter will, bekommt die Meldung mit der Nummer des anderen Prozesses.
 
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
@@ -514,8 +514,8 @@ fn status(knoten: Option<&PathBuf>) -> ExitCode {
         );
     }
     println!(
-        "Hinweis : Kurve und Hintergrunddienst fehlen noch - ohne laufende Oberflaeche\n\
-                   kaehlt dieser Befehl nicht von selbst weiter"
+        "Hinweis : ohne laufenden llano-rs daemon oder Oberflaeche haelt nichts die Kurve -\n\
+                   ein einzelner Befehl kaehlt also nur einmal"
     );
     ExitCode::SUCCESS
 }
@@ -552,7 +552,18 @@ fn selbstpruefung(knotenwunsch: Option<&PathBuf>) -> ExitCode {
         "Rust-Fassung   : {VERSION}, Geraetezugriff {}",
         device::backend_name()
     );
-    println!("Konfiguration  : in dieser Fassung noch nicht vorgesehen");
+    println!("Konfiguration  : {}", config::datei().display());
+    println!(
+        "Sperrdatei     : {}",
+        llano_core::lock::sperr_datei().display()
+    );
+    // Dieselbe Datei wie bei der Python-Fassung, und nur sie verhindert, dass
+    // zwei Steuerungen gleichzeitig am Geraet lesen: der Kuehler beantwortet
+    // die STATUSANFRAGE einmal, und der zweite Zugriff findet dann nichts mehr.
+    match llano_core::lock::erwerben() {
+        Ok(_) => println!("Andere Fassung : keine - dieses Programm ist allein am Geraet"),
+        Err(belegt) => println!("Andere Fassung : {belegt}"),
+    }
 
     let vorgefunden = device::describe_nodes();
     if vorgefunden.is_empty() {
@@ -607,7 +618,8 @@ fn selbstpruefung(knotenwunsch: Option<&PathBuf>) -> ExitCode {
     println!();
     if heil {
         println!(
-            "Alles da, was zum Lesen noetig ist. Schreiben uebernimmt noch die Python-Fassung."
+            "Alles da, was der Rechner zum Steuern braucht. Zwei Fassungen am selben\n\
+             Kuehler sind einer zu viel: eine von beiden muss aufhoeren."
         );
         ExitCode::SUCCESS
     } else {
