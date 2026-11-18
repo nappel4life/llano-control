@@ -56,7 +56,7 @@ OBERE_SCHWELLE = 150.0
 STEHEN_NACH = 10
 
 TEXT_START = ("Ohne HWiNFO fehlt die Prozessortemperatur: HWiNFO starten und in "
-              "den Einstellungen „Shared Memory Support“ anlassen. Laeuft "
+              "den Einstellungen 'Shared Memory Support' anlassen. Laeuft "
               "HWiNFO als Administrator, muss auch dieses Programm als "
               "Administrator laufen.")
 TEXT_STILLSTAND = ("HWiNFO meldet seit einer halben Minute keinen neuen Stand - "
