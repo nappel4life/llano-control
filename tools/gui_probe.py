@@ -523,6 +523,19 @@ def main() -> int:
     expect("zwei Punkte bleiben immer uebrig", len(controller.cfg["curve"]) >= 2)
     print(f"Bilder: {out} und {out.replace('.png', '-kurve.png')}")
 
+    # ---- Warum Temperaturen fehlen ----------------------------------------
+    # Ein Rechner ohne Messhilfe kennt keine Prozesstemperatur. Das war bisher
+    # nur in der Kommandozeile nachzulesen, und die liest niemand, der klickt.
+    window.controller.sensors.note = lambda: ("Ohne Messhilfe fehlt die "
+                                              "Prozesstemperatur.")
+    window._zeige_sensorgrund()
+    pump(0.2)
+    expect("die Oberflaeche erklaert fehlende Temperaturen",
+           not window.sensor_note.isHidden() and "Messhilfe" in window.sensor_note.text())
+    window.controller.sensors.note = lambda: None
+    window._zeige_sensorgrund()
+    expect("und schweigt, wenn nichts fehlt", window.sensor_note.isHidden())
+
     # ---- Die Einstellungsdatei von frueher --------------------------------
     # Ein Deinstallieren laesst die Datei mit Absicht zurueck, und genau so eine
     # alte oder fremde Datei hat die Oberflaeche schon sterben lassen, nachdem

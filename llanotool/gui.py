@@ -995,6 +995,12 @@ class MainWindow(QMainWindow):
         self.sensor_list = QVBoxLayout()
         layout.addLayout(self.sensor_list)
         layout.addWidget(_muted("Die Kurve folgt dem wärmsten der markierten Sensoren."))
+        # Warum ein Rechner die Prozesstemperaturen nicht kennt, stand bisher nur
+        # in der Kommandozeile - und die liest niemand, der nur klickt.
+        self.sensor_note = _muted("")
+        self.sensor_note.setWordWrap(True)
+        self.sensor_note.setVisible(False)
+        layout.addWidget(self.sensor_note)
         layout.addStretch(1)
         self._sensor_widgets: dict[str, tuple[QCheckBox, QLabel]] = {}
         return box
@@ -1177,6 +1183,23 @@ class MainWindow(QMainWindow):
         for key, (check, _label) in self._sensor_widgets.items():
             if key not in temps:
                 check.hide()
+        self._zeige_sensorgrund()
+
+    def _zeige_sensorgrund(self) -> None:
+        """Der Satz unter der Auswahl, falls etwas an den Temperaturen fehlt.
+
+        Die Quellen antworten aus dem Speicher oder aus einer lokalen Anfrage,
+        und beides kann ausbleiben, ohne dass etwas kaputt waere - nur eben
+        ohne Prozessorkurve. Was fehlt, steht hier, und nur hier.
+        """
+        try:
+            grund = self.controller.sensors.note() or ""
+        except Exception:                                     # noqa: BLE001
+            grund = ""            # die Anzeige darf an einer Auskunft nicht sterben
+        if self.sensor_note.text() == grund:
+            return
+        self.sensor_note.setText(grund)
+        self.sensor_note.setVisible(bool(grund))
 
     def _add_sensor_row(self, key: str) -> tuple[QCheckBox, QLabel]:
         row = QHBoxLayout()
