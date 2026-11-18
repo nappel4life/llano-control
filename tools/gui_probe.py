@@ -567,6 +567,62 @@ def main() -> int:
     expect(f"{len(FEINDE)} zerstoerte Einstellungsdateien lassen ein Fenster zu",
            aufgehen == len(FEINDE))
 
+    # ---- Wenn eine andere Fassung schon am Kuehler sitzt -------------------
+    # Der Fall kommt aus dem Autostart: Das Symbol im Hintergrund haelt das
+    # Geraet, und der Doppelklick danach darf nicht still stehen bleiben, nur
+    # weil niemand eine Frage wegklickt. "Still stehen" sieht naemlich genauso
+    # aus wie "gar nicht gestartet" - und das ist hier schon einmal ein ganzer
+    # Tag Raten gewesen.
+    from llanotool import gui as oberflaeche
+    from llanotool.loop import AlreadyRunning
+
+    class Schirm:
+        """Ein Bildschirm, der weiss, ob er einer ist."""
+
+        def __init__(self, echt: bool) -> None:
+            self.zeilen: list[str] = []
+            self._echt = echt
+
+        def isatty(self) -> bool:
+            return self._echt
+
+        def write(self, text: str) -> int:
+            self.zeilen.append(text)
+            return len(text)
+
+    urspruenglich = oberflaeche.config_and_controller
+    urspruengliche_frage = oberflaeche.QMessageBox.warning
+
+    def sitzend() -> None:
+        raise AlreadyRunning("PID 4711 ist schon da")
+
+    gefragt: list = []
+    oberflaeche.config_and_controller = sitzend
+    oberflaeche.QMessageBox.warning = staticmethod(
+        lambda *arg, **kwargs: gefragt.append(" ".join(map(str, arg))))
+    ausgaenge = {}
+    try:
+        for echt in (True, False):
+            schirm = Schirm(echt)
+            wirklich = sys.stdout
+            sys.stdout = schirm
+            gefragt.clear()
+            try:
+                ausgaenge[echt] = (oberflaeche._run_window(app, None, None, False, False),
+                                   "".join(schirm.zeilen), list(gefragt))
+            finally:
+                sys.stdout = wirklich
+    finally:
+        oberflaeche.config_and_controller = urspruenglich
+        oberflaeche.QMessageBox.warning = urspruengliche_frage
+
+    expect("ein zweites Programm am Kuehler haelt die Oberflaeche nicht an",
+           [ende for ende, _, _ in ausgaenge.values()] == [0, 0])
+    expect("am Terminal steht der Grund, ohne Frage",
+           "4711" in ausgaenge[True][1] and not ausgaenge[True][2])
+    expect("ohne Bildschirm wird stattdessen gefragt",
+           "4711" in ausgaenge[False][2][0] and not ausgaenge[False][1])
+
     window.worker.stop()
     if failures:
         print(f"\n{len(failures)} Punkt(e) fehlgeschlagen: {', '.join(failures)}")

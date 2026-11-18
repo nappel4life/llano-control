@@ -224,6 +224,42 @@ Farben, Effekte, LEDs an/aus sowie „Fenster zeigen“ und „Beenden“. Links
 blendet das Fenster ein oder aus. Beim Schließen des Fensters läuft die
 Steuerung im Hintergrund weiter.
 
+### Wenn kein Fenster kommt
+
+Die verpackte Oberfläche hat kein Terminal, in dem sie etwas sagen könnte. Was
+sie beim Start tut, schreibt sie deshalb in den Einstellungsordner:
+
+| Datei | Windows | Linux |
+|---|---|---|
+| Startprotokoll | `%APPDATA%\llano\oberflaeche.txt` | `~/.config/llano/oberflaeche.txt` |
+| Letzte Ausnahme | `%APPDATA%\llano\oberflaeche-fehler.txt` | `~/.config/llano/oberflaeche-fehler.txt` |
+
+In der Datei steht jeder Schritt des Starts, beginnend mit der Fassung:
+
+```
+19:20:38 INFO   Oberflaeche startet (Fassung 1.1.8).
+19:20:38 DEBUG  Die Oberflaechenbibliothek ist da; die Anwendung wird gebaut.
+19:20:38 INFO   gekoppelt an \\?\hid#vid_374a&pid_b101#7&2985dc16&0&0000#…
+19:20:38 DEBUG  Das Fenster ist gebaut und wird gezeigt (normal).
+19:20:38 INFO   Fenster ist gebaut und gezeigt; Schleife laeuft an.
+```
+
+Wo diese Zeilen abbrechen, ist die Stelle, an der es steht. Auch ein Absturz
+*einer Bibliothek* — also einer ohne jeden Python-Fehler — schreibt in
+dieselbe Datei, weil der Absturzfaenger des Interpreters beim Start scharf
+gestellt wird. Ein Doppelklick, der augenscheinlich nichts tut, ist damit
+beschreibbar statt nur ratbar.
+
+Zwei Dinge, die dabei sonst verwirren:
+
+* **Eine fehlende `config.json` ist in Ordnung.** Die Datei entsteht erst, wenn
+  etwas geändert wird; ein frisches Programm läuft so lange mit den Werten aus
+  dem Programm selbst.
+* **Sitzt schon eine andere Fassung am Kühler**, etwa das Autostart-Symbol,
+  sagt die Oberfläche das — am Terminal als Text, sonst als Frage. Sie wartet
+  bewusst nicht schweigend, denn wartend sieht sie von aussen aus wie
+  nicht gestartet.
+
 ## An beim Start, aus beim Herunterfahren
 
 Der Kühler hat einen Hauptschalter, und der bleibt stehen, wie man ihn zuletzt
@@ -423,7 +459,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.7 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.8 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.

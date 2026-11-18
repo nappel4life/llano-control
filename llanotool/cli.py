@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import faulthandler
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ import sys
 import time
 import traceback
 
+from . import __version__
 from . import config as config_mod
 from . import protocol
 from .curve import interpolate
@@ -273,13 +275,19 @@ def absturzbericht(ausnahme: BaseException) -> str:
     return ort
 
 
-def protokolldatei() -> str:
+def protokolldatei(genau: bool = False) -> str:
     """Ein Protokoll im Ordner der Einstellungen - fuer Starts ohne Fenster.
 
     Die verpackte Oberflaeche hat kein Terminal, in dem sie etwas sagen
     koennte. Was sie beim Start tut, liegt dann neben ihrer Fehlerdatei, und
     beide zusammen sind der Bericht, den jemand abschicken kann, der nur einen
     Doppelklick gemacht hat.
+
+    In die Datei kommt mehr als auf den Bildschirm: ein Start, der mitten im
+    Bauen des Fensters stirbt, laesst sich sonst nicht von einem unterscheiden,
+    der nie angefangen hat. Ausserdem wird der Absturzfaenger scharf gestellt,
+    der auch einen harten Abbruch (Bibliothek gestuerzt, kein Python-Fehler)
+    in dieselbe Datei schreibt.
     """
     ordner = os.path.dirname(config_mod.config_path())
     ort = os.path.join(ordner, "oberflaeche.txt")
@@ -290,16 +298,31 @@ def protokolldatei() -> str:
         return ""
     zeiger.setFormatter(logging.Formatter(
         "%(asctime)s %(levelname)-7s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    zeiger.setLevel(logging.DEBUG)
     llano = logging.getLogger("llano")
     llano.addHandler(zeiger)
-    if llano.level == logging.NOTSET or llano.level > logging.INFO:
-        # Ohne diese Zeile bliebe die Datei leer, wenn die Meldungsstufe nur
-        # der Grundordnung gesetzt war - und die kennt ein Doppelklick nicht.
-        llano.setLevel(logging.INFO)
+    llano.setLevel(logging.DEBUG)      # die Datei bekommt alles, der Schirm nicht
+    for handler in logging.getLogger().handlers:
+        if handler is not zeiger and handler.level == logging.NOTSET:
+            handler.setLevel(logging.DEBUG if genau else logging.INFO)
+    try:
+        faulthandler.enable(file=zeiger.stream, all_threads=True)
+    except (OSError, ValueError, AttributeError):
+        pass                           # ohne Haertetest laeuft die Oberflaeche auch
     return ort
 
 
 def cmd_gui(args) -> int:
+    logging.basicConfig(
+        level=logging.DEBUG if args.verbose else logging.INFO,
+        format="%(asctime)s %(levelname)-7s %(message)s",
+        datefmt="%H:%M:%S",
+    )
+    # Erst die Datei, dann alles weitere: Schon das Herholen der Oberflaechen-
+    # bibliothek kann danebengehen, und dann soll wenigstens ein Anfang stehen.
+    protokolldatei(genau=args.verbose)
+    log = logging.getLogger("llano")
+    log.info("Oberflaeche startet (Fassung %s).", __version__)
     try:
         from .gui import run
     except ImportError as exc:
@@ -309,15 +332,10 @@ def cmd_gui(args) -> int:
             f"(Einzelheit: {exc})\n"
             "Ohne Oberflaeche gehen weiterhin: llano daemon, llano status, llano fan, llano light"
         )
-    logging.basicConfig(
-        level=logging.DEBUG if args.verbose else logging.INFO,
-        format="%(asctime)s %(levelname)-7s %(message)s",
-        datefmt="%H:%M:%S",
-    )
-    protokolldatei()
     try:
         return run(start_minimized=args.minimized, tray_only=args.tray)
     except Exception as exc:                          # noqa: BLE001 - der letzte Zeuge
+        log.exception("Die Oberflaeche ist beim Starten haengen geblieben.")
         ort = absturzbericht(exc)
         raise SystemExit(
             f"Die Oberflaeche ist beim Starten haengen geblieben: {exc}\n"

@@ -781,12 +781,16 @@ class MainWindow(QMainWindow):
         self._last_status: dict = {}
 
         self._build_ui()
+        log.debug("Die Bauteile stehen; das Taskleisten-Symbol kommt dazu.")
         self._build_tray()
+        log.debug("Das Symbol ist gebaut; der Faden, der den Kuehler abfragt, "
+                  "geht an.")
 
         self.worker = Worker(controller, self)
         self.worker.updated.connect(self.apply_status)
         self.worker.problem.connect(lambda text: self.statusBar().showText(text, 6000))
         self.worker.start()
+        log.debug("Der Abfragefaden laeuft.")
 
     # ------------------------------------------------------------- interface
 
@@ -1419,7 +1423,9 @@ def _muted(text: str) -> QLabel:
 def _pretty_sensor(key: str) -> str:
     chip, _, label = key.partition(":")
     names = {"coretemp": "CPU", "k10temp": "CPU", "acpitz": "Mainboard", "nvme": "SSD",
-             "nvidia": "GPU", "spd5118": "RAM", "iwlwifi_1": "WLAN", "amdgpu": "GPU"}
+             "nvidia": "GPU", "spd5118": "RAM", "iwlwifi_1": "WLAN", "amdgpu": "GPU",
+             "thermalzone": "Wärmezone", "hwiinfo": "HWiNFO",
+             "lhm": "LibreHardwareMonitor"}
     base = names.get(chip, chip)
     if not label or label in ("Composite", "total"):
         return base
@@ -1433,6 +1439,7 @@ def _pretty_sensor(key: str) -> str:
 
 def run(controller: Controller | None = None, start_minimized: bool = False,
         tray_only: bool = False) -> int:
+    log.debug("Die Oberflaechenbibliothek ist da; die Anwendung wird gebaut.")
     app = QApplication.instance() or QApplication(sys.argv)
     apply_theme(app)
     app.setApplicationName(APP_NAME)
@@ -1440,6 +1447,7 @@ def run(controller: Controller | None = None, start_minimized: bool = False,
     app.setDesktopFileName(APP_NAME)
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(make_icon())
+    log.debug("Die Anwendung ist gebaut.")
 
     # Before anything reaches the pad, so a session that ends during startup
     # still leaves the pad switched off instead of switched on.
@@ -1460,21 +1468,42 @@ def _run_window(app: QApplication, controller: Controller, wake: QuitWatcher,
             # die Meldung ging bisher auf eine Konsole, die ein verpacktes
             # Programm gar nicht hat. Am Terminal genugt der Text, sonst das
             # Fenster -- sonst scheint das Programm nur bose zu sein.
-            print(f"Fehler: {exc}")
-            if not sys.stdout or not sys.stdout.isatty():
-                QMessageBox.warning(None, WINDOW_TITLE, str(exc))
+            #
+            # Die Reihenfolge zaehlt: erst die Protokolldatei, dann die Frage.
+            # Sonst steht ein Programm, das niemand wegklickt (weil keiner
+            # davor sitzt oder die Ausgabe umgeleitet ist), still - und "still
+            # stehen" ist von "gar nicht gestartet" aeusserlich nicht zu
+            # unterscheiden.
+            log.warning("Eine andere Fassung hält den Kühler schon: %s", exc)
+            if sys.stdout and sys.stdout.isatty():
+                print(f"Fehler: {exc}")
+                return 0
+            QMessageBox.warning(None, WINDOW_TITLE, str(exc))
             return 0
     if controller.cfg.get("power_on_start", True):
+        log.debug("Der Kuehler wird fuer den Start eingeschaltet.")
         controller.set_power(True, quiet=True)
-    window = MainWindow(controller)
+    log.debug("Das Fenster wird gebaut.")
+    try:
+        window = MainWindow(controller)
+    except Exception:                                     # noqa: BLE001
+        # Die Protokolldatei ist der einzige Ort, an dem dieser Fehler noch zu
+        # sehen ist: ein Fenster gibt es nicht, ein Terminal selten.
+        log.exception("Das Fenster konnte nicht gebaut werden.")
+        raise
+    log.debug("Das Fenster ist gebaut und wird gezeigt (%s).",
+              "nur Symbol" if tray_only
+              else ("minimiert" if start_minimized else "normal"))
     if tray_only:
         window.hide()
     elif start_minimized:
         window.showMinimized()
     else:
         window.show()
+    log.debug("Das Fenster ist gezeigt.")
 
     if not QSystemTrayIcon.isSystemTrayAvailable():
+        log.debug("Dieser Rechner stellt kein Taskleisten-Symbol bereit.")
         window.tray.showMessage(WINDOW_TITLE,
                                 "Diese Oberflaeche hat kein Taskleisten-Symbol.",
                                 QSystemTrayIcon.MessageIcon.Warning, 5000)
