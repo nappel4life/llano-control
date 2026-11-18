@@ -9,6 +9,7 @@ same time.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import signal
@@ -16,7 +17,7 @@ import sys
 import time
 
 from PyQt6.QtCore import (
-    QRectF, QPointF, Qt, QSocketNotifier, QThread, pyqtSignal,
+    QRectF, QPointF, Qt, QSocketNotifier, QThread, QTimer, pyqtSignal,
 )
 from PyQt6.QtGui import (
     QAction, QActionGroup, QBrush, QColor, QFont, QIcon, QLinearGradient, QPainter,
@@ -36,6 +37,10 @@ from .protocol import COLORS, EFFECTS, EFFECT_SPEEDS
 
 APP_NAME = "llano-control"
 WINDOW_TITLE = "llano V12 Ultra"
+
+# Derselbe Logger wie die Steuerung: ein Fenster, das sich nicht zeigt, soll
+# im Terminal sagen koennen, wie weit es gekommen ist.
+log = logging.getLogger("llano")
 
 # Screen colours for the five pad colours, in pad order.
 COLOR_SWATCH = {
@@ -1451,8 +1456,8 @@ def _run_window(app: QApplication, controller: Controller, wake: QuitWatcher,
                                 "Diese Oberflaeche hat kein Taskleisten-Symbol.",
                                 QSystemTrayIcon.MessageIcon.Warning, 5000)
 
-    if wake.attach(window):
-        return 0
+    log.info("Fenster ist gebaut und gezeigt; Schleife laeuft an.")
+    wake.attach(window)
     return app.exec()
 
 
@@ -1492,19 +1497,26 @@ class QuitWatcher:
         except OSError:
             pass
 
-    def attach(self, window: "MainWindow") -> bool:
+    def attach(self, window: "MainWindow") -> None:
         """Hand the wake-up to the window.
 
-        Returns True when a signal arrived before the window existed, which
-        means there is nothing to wait for: the window has just cleaned up and
-        the event loop below is better off never starting.
+        The signal that arrives here may have come before the window was
+        there -- a console that still had an interrupt in the air, a session
+        already on its way out. That is a "Beenden" like any other, so it goes
+        through the window once the loop runs: only that way does the pad get
+        switched off on the way out, which is the whole point of watching for
+        the signal. Quitting before the loop ever started left the pad switched
+        on with nothing left to switch it off, and left nothing on screen
+        either -- which is what one reporter saw as "the interface just does
+        not start".
         """
         self.notifier = QSocketNotifier(self.read_fd, QSocketNotifier.Type.Read, window)
         self.notifier.activated.connect(lambda *_: window.quit())
         if self.signal is None:
-            return False
-        window.quit()
-        return True
+            return
+        log.warning("Ein Abbruch (Signal %d) kam schon vor dem Fenster an - "
+                    "die Oberflaeche beendet sich wieder.", self.signal)
+        QTimer.singleShot(0, window.quit)
 
     def close(self) -> None:
         for signum, handler in self.previous.items():
