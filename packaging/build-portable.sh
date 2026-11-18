@@ -38,6 +38,13 @@ LAUNCH
 
 cp "$ROOT/contrib/70-llano.rules" "$STAGE/"
 
+# Das Rust-Werkzeug daneben: ein Programm von ein paar hundert Kilobyte, das
+# dieselbe Datei liest und denselben Dienst macht.
+if [ -x "$ROOT/rust/target/release/llano-rs" ]; then
+    install -m 755 "$ROOT/rust/target/release/llano-rs" "$STAGE/llano-rs"
+    echo "-- llano-rs dabei ($(du -h "$STAGE/llano-rs" | cut -f1))"
+fi
+
 cat > "$STAGE/ANLEITUNG.txt" <<'TEXT'
 llano Control - tragbare Ausgabe fuer Linux
 
@@ -47,6 +54,12 @@ Es ist nichts zu installieren. Aus diesem Ordner heraus:
   ./llano status           was macht der Kuehler gerade?
   ./llano selftest         kann dieser Rechner den Kuehler?
   ./llano fan 60           Luefter auf 60 Prozent
+
+Zusätzlich liegt llano-rs bei: dasselbe ohne Qt, ein einziges Programm.
+
+  ./llano-rs status         was macht der Kuehler gerade?
+  ./llano-rs rules          was macht der Dienst und warum?
+  ./llano-rs daemon         die Kurve von selbst nachsehen lassen
 
 Der Kuehler ist eine USB-HID-App (374a:b101). Unter Linux braucht der
 angemeldete Benutzer Rechte fuer /dev/hidraw*; die Regel dazu liegt bei:

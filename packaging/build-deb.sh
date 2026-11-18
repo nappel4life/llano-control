@@ -60,6 +60,16 @@ if __name__ == "__main__":
 ENTRY
 chmod 755 "$PKG/usr/bin/llano" "$PKG/usr/lib/$NAME/llano-entry.py"
 
+# Das Rust-Werkzeug, wenn es gebaut wurde: zweite Kommandozeile, gleiche
+# Einstellungsdatei, kein Qt. Fehlt die Datei (kein cargo im Bau), bleibt das
+# Paket bei der Python-Fassung - ein Grund zum Bauen ist das nicht.
+if [ -x "$ROOT/rust/target/release/llano-rs" ]; then
+    install -m 755 "$ROOT/rust/target/release/llano-rs" "$PKG/usr/bin/llano-rs"
+    echo "-- llano-rs dabei ($(du -h "$PKG/usr/bin/llano-rs" | cut -f1))"
+else
+    echo "-- llano-rs nicht gebaut, es bleibt bei llano"
+fi
+
 sed "s|^Exec=.*|Exec=/usr/bin/llano gui|" "$ROOT/contrib/llano-control.desktop" \
     > "$PKG/usr/share/applications/$NAME.desktop"
 cp "$ROOT/assets/llano.svg" "$PKG/usr/share/icons/hicolor/scalable/apps/$NAME.svg"
@@ -97,6 +107,9 @@ Description: Steuerung des llano V12 Ultra Notebookkuehlers
  .
  Kommandozeile, Hintergrunddienst und Qt-Oberflaeche; die udev-Regel liegt
  bei, damit der angemeldete Benutzer das Geraet ohne Root ansprechen darf.
+ .
+ Mit installiert ist ausserdem llano-rs, dieselbe Steuerung als kleines
+ Programm ohne Qt: eigene Kurve, gleicher Dienst, gleiche Einstellungsdatei.
 CONTROL
 
 cat > "$PKG/DEBIAN/postinst" <<'POST'

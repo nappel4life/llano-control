@@ -71,13 +71,23 @@ jobs:
 
       # Der Bauwagen bringt Rust mit; rustfmt und clippy kommen selten vor.
       - name: Werkzeuge
-        run: rustup component add rustfmt clippy
+        run: |
+          rustup component add rustfmt clippy
+          rustup target add x86_64-pc-windows-msvc
 
       - name: Form und Warnungen
         working-directory: rust
         run: |
           cargo fmt --all -- --check
           cargo clippy --all-targets -- -D warnings
+
+      - name: Das Windows-Ziel zumindest durch den Seher
+        # Hier steht kein Windows-Rechner mit Kuehler; was der Bauwagen tun
+        # kann, ist zu schauen, dass Layouts, Aufrufweiten und Breiten fuer das
+        # Windows-Ziel stimmen. Der Installer wird spaeter auf einem
+        # Windows-Bauwagen gebaut, das Geraet selbst probiert jemand aus.
+        working-directory: rust
+        run: cargo clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings
 
       - name: Pruefungen
         working-directory: rust
@@ -107,6 +117,14 @@ jobs:
           python -m pip install --upgrade pip pyinstaller PyQt6
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends dpkg fakeroot
+
+      - name: Rust-Werkzeug bauen
+        # Die Kommandozeile `llano-rs` kommt als zweites Programm mit ins Paket
+        # und in die tragbare Mappe. Ohne cargo hier blieb das schon einmal
+        # still weg, deshalb die Pruefung danach.
+        run: |
+          cargo build --release --manifest-path rust/Cargo.toml
+          ls -l rust/target/release/llano-rs
 
       - name: Tragbare Mappe
         run: bash packaging/build-portable.sh
@@ -160,6 +178,17 @@ jobs:
 
       - name: Programmdateien bauen
         run: pyinstaller --noconfirm --clean packaging/llano.spec
+
+      - name: Rust-Werkzeug bauen
+        # llano-rs.exe neben llano.exe: dieselbe Einstellungsdatei, derselbe
+        # Dienst, nur ohne Qt. Am Windows-Geraet war dieser Pfad noch nicht -
+        # ausprobiert wird er von jemandem mit dem Kuehler am Rechner.
+        shell: bash
+        run: |
+          cargo build --release --manifest-path rust/Cargo.toml
+          cp rust/target/release/llano-rs.exe dist/llano-control/
+          cp rust/target/release/llano-rs.exe out/
+          ls -l dist/llano-control/llano-rs.exe out/
 
       - name: Das gebaute Programm ansehen
         shell: bash

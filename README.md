@@ -347,7 +347,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.0.1 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.0 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.
@@ -380,29 +380,38 @@ Oberfläche aus: `assets/screenshot.png`, beim Ziehen eines Kurvenpunkts
 Die Prüfsummen- und Rahmenbildung ist gegen mitgeschnittene Pakete getestet,
 ausserdem gegen die Reports, die dieses Gerät tatsächlich zurückmeldet.
 
-## Die Rust-Fassung (in Arbeit)
+## Die Rust-Fassung
 
-Unter `rust/` wächst ein Unterbau, der dasselbe Protokoll noch einmal baut: die
-neun Byte eines Berichts, der Gerätezugriff über hidraw, die Temperaturen aus
-`/sys/class/hwmon`. Der Sinn ist nicht Geschwindigkeit, sondern Messtreue —
-beide Fassungen müssen dieselben Byte-Folien bauen und gleich lesen, die
+Unter `rust/` sitzt dasselbe Protokoll noch einmal, von Grund auf: die neun Byte
+eines Berichts, der Gerätezugriff über hidraw (Linux) und `HidD_`/`SetupDi_`
+(Windows), die Temperaturen aus `/sys/class/hwmon` und von `nvidia-smi`, die
+Kurve mit ihrem Verzug beim Herunter und der Hintergrunddienst, der sie
+nachfährt. Der Sinn ist nicht Geschwindigkeit, sondern Messtreue — beide
+Fassungen müssen dieselben Byte-Folien bauen und gleich lesen, die
 `tools/protokoll-vektoren.py` aus dem am Gerät gemessenen Python-Protokoll
-erzeugt. Weicht eine Seite ab, scheitert die Prüfung und nicht später der
-Kühler.
+erzeugt. Weicht eine Seite ab, scheitert die Prüfung und nicht später der Kühler.
 
 ```bash
-cd rust && cargo test
-cargo run -- status                    # was macht der Kühler gerade?
+cd rust && cargo test                  # 69 Pruefungen, inklusive der Byte-Folien
+cargo run -- status                    # was macht der Kuehler gerade?
 cargo run -- fan 45                    # schreiben, aber erst nachgemessen
+cargo run -- rules                     # was der Dienst taet, und warum
+cargo run -- daemon                    # die Kurve von selbst nachsehen lassen
 ```
 
-Geschrieben wird erst, nachdem der Weg an diesem Pad gemessen war — Stufe,
-Farbe, Effekt, Takt, Helligkeit und Beleuchtung aus/an sind es inzwischen, und
-jeder Schreibbefehl hält vorher die Sperrdatei der Python-Fassung: Läuft
-`llano gui`, nennt das Programm deren Prozessnummer statt gegen sie zu schreiben.
-Kurve, Hintergrunddienst, Konfiguration und Windows fehlen noch. Zwei getrennte
-Programme also, keine zwei Hälften eines. Einzelheiten in
-[rust/README.md](rust/README.md).
+Das Programm heißt `llano-rs`, wiegt um die 700 Kilobyte und kommt mit: im
+Debian-Paket als `/usr/bin/llano-rs`, in der tragbaren Mappe als `./llano-rs`,
+im Windows-Installer neben `llano.exe`. Die AppImage enthält es nicht — in einer
+einzigen Datei ist ein zweites Programm schwer erreichbar, und wer es braucht,
+nimmt die Mappe oder das Paket.
+
+Es liest und schreibt dieselbe Einstellungsdatei wie die Python-Fassung
+(`~/.config/llano/config.json`, unter Windows `%APPDATA%`) und hält dieselbe
+Sperrdatei: Läuft `llano gui`, nennt `llano-rs` deren Prozessnummer und lässt
+die Finger vom Gerät (Rückgabe 3). Was die Rust-Fassung nicht kann, ist das
+Fenster — die Oberfläche bleibt in Qt. Der Windows-Gerätezugriff ist gebaut und
+typegeprüft, aber noch nie an einem echten Pad probiert; dafür ist der Installer
+da. Einzelheiten in [rust/README.md](rust/README.md).
 
 ## Verifiziert am Gerät
 

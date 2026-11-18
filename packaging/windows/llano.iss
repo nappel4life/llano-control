@@ -1,6 +1,6 @@
 ; Installationsprogramm fuer Windows (Inno Setup 6)
 ;
-;   ISCC.exe /DVersion=1.0.1 packaging\windows\llano.iss
+;   ISCC.exe /DVersion=1.1.0 packaging\windows\llano.iss
 ;
 ; Vorher müssen die Programmdateien gebaut sein:
 ;
@@ -14,7 +14,7 @@
 ; Auf GitHub wird Version und Ausgabename durch /D vorgegeben.
 
 #define MyAppName    "llano Control"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.1.0"
 #if Defined(Version)
   #define MyAppVersion Version
 #endif
