@@ -138,8 +138,10 @@ jobs:
       - name: Installer bauen
         shell: bash
         run: |
+          # Ein "/" vor DVersion wuerde die Git-Msys-Schale in einen Dateipfad
+          # verwandeln, und Inno Setup haelt das fuer eine zweite Bau-Vorschrift.
           "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" \
-            "/DVersion=$VERSION" packaging/windows/llano.iss
+            "-DVersion=$VERSION" packaging/windows/llano.iss
           ls -l out
 
       - name: Installer pruefen
