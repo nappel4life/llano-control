@@ -39,6 +39,9 @@ from .sensors_hwiinfo import (OBERE_SCHWELLE, UNTERE_SCHWELLE, Messwert,
 ADRESSE = "http://127.0.0.1:8085/data.json"
 _UMGEBUNG = "LLANO_LHM"
 
+# Wie lange die Anfrage auf eine Antwort wartet, in Sekunden.
+FRIST = 2.0
+
 # Temperaturen heissen in dem Baum auf jeder Sprache gleich; danach wird
 # gefiltert, nicht nach dem deutschen Wort fuer die Messart.
 ART_TEMPERATUR = "Temperature"
@@ -147,10 +150,17 @@ class LHM:
 
 
 def _abruf(adresse: str) -> dict | None:
-    """Die eine Datei holen. Ohne Antwort, ohne Vermittler, ohne Aufhebens."""
+    """Die eine Datei holen. Ohne Antwort, ohne Vermittler, ohne Aufhebens.
+
+    Die Frist ist grosszuegig, weil LibreHardwareMonitor seine Datei erst beim
+    Fragen zusammenbaut: gleich nach dem Start kann die erste Antwort eine
+    Weile brauchen. Ist ueberhaupt nichts erreichbar, antwortet Windows sofort
+    mit "abgelehnt" - die Frist kostet also nur dort Zeit, wo wirklich etwas
+    antworten will.
+    """
     vermittler = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
-        with vermittler.open(adresse, timeout=0.5) as antwort:
+        with vermittler.open(adresse, timeout=FRIST) as antwort:
             return json.load(antwort)
     except (urllib.error.URLError, OSError, ValueError):
         return None

@@ -261,6 +261,14 @@ def _zone_failure_text(stderr: str) -> str:
 # Beide Messhilfen sind kostenlos und beide tun dem Kuehler keinen Weh: Es geht
 # nur darum, an die Prozesstemperaturen zu kommen, die Windows ohne Treiber nicht
 # herausgibt. Deshalb einer Satz fuer beide Faelle statt zweier Hinweise.
+# Die Messhilfe antwortet, aber der Prozessor fehlt in ihrer Liste. Der Fall
+# ist haeufiger als jede Erklaerung: ohne Administratorrechte darf keine
+# Benutzermessung die Fuehler im Prozessor lesen.
+TEXT_OHNE_PROZESSOR = (
+    "Die Messhilfe antwortet, nennt die Prozessortemperatur aber nicht. Meist "
+    "laeuft sie ohne Administratorrechte - die Fuehler im Prozessor haelt "
+    "Windows zurueck. Messhilfe beenden und als Administrator neu starten.")
+
 TEXT_HILFE_FEHLT = (
     "Ohne Messhilfe fehlt die Prozessortemperatur: HWiNFO laufen lassen "
     "(Einstellungen 'Shared Memory Support') oder LibreHardwareMonitor "
@@ -316,6 +324,11 @@ class Sensors:
                 grund = stille[0].hinweis()     # die andere Seite liefert ja
                 if grund:
                     meldungen.append(grund)
+            else:
+                # Beide Helfer antworten, keiner nennt den Prozessor. Ohne
+                # diese Zeile haette die Oberflaeche geschwiegen, und
+                # "schweigen" war noch immer die schlechteste Auskunft.
+                meldungen.append(TEXT_OHNE_PROZESSOR)
         return "  ".join(m for m in meldungen if m) or None
 
     def _hat_cpu_temperatur(self) -> bool:

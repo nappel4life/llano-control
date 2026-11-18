@@ -16,6 +16,7 @@ liefert, und nicht erst am Kuehler.
 
 import unittest
 
+from llanotool import sensors
 from llanotool import sensors_lhm as lhm
 
 
@@ -155,6 +156,54 @@ class Leser(unittest.TestCase):
         # Ein Port, an dem nichts hoert: keine Ausnahme, nur ein leerer Mund.
         leser = lhm.LHM(ttl=0, adresse="http://127.0.0.1:9/data.json")
         self.assertEqual(leser.lesen(), {})
+
+    def test_die_erste_Antwort_darf_zaubern(self):
+        # LibreHardwareMonitor baut seine Datei erst beim Fragen zusammen, und
+        # gleich nach dem Start dauert das schon einmal eine Sekunde. Eine halbe
+        # Frist haette daraus still "kein Helfer" gemacht.
+        self.assertGreaterEqual(lhm.FRIST, 2.0)
+
+
+class WasDerAntwortFehlt(unittest.TestCase):
+    """Der Satz unter der Auswahl, wenn die Messhilfe redet, aber nicht weiss.
+
+    Der Fall ist haeufiger als jede andere Erklaerung: LibreHardwareMonitor
+    laeuft, antwortet willig - und nennt keine Prozessortemperatur, weil ihm
+    ohne Administratorrechte der Blick in den Prozessor verweigert wird.
+    Dafuer zu schweigen war die schlechteste aller Auskuenfte.
+    """
+
+    class Helfer:
+        stillstand = None
+
+        def __init__(self, werte):
+            self._werte = werte
+
+        def lesen(self):
+            return dict(self._werte)
+
+        def hinweis(self):
+            return None
+
+    def _messstellen(self, werte):
+        messstellen = sensors.Sensors()
+        messstellen._zones = None
+        messstellen._hwiinfo = None
+        messstellen._lhm = self.Helfer(werte)
+        messstellen.read = lambda collapse=True: dict(werte)
+        return messstellen
+
+    def test_sie_antwortet_ohne_prozessor(self):
+        selbst = self._messstellen({"lhm:Mainboard": 41.0})
+        self.assertIn("Administrator", selbst.note())
+
+    def test_sie_antwortet_garnicht(self):
+        selbst = self._messstellen({})
+        self.assertIn("Shared Memory", selbst.note())
+
+    def test_sie_nennt_den_prozessor(self):
+        selbst = self._messstellen({"lhm:CPU (Package)": 52.0})
+        self.assertIsNone(selbst.note())
 
 
 if __name__ == "__main__":                          # pragma: no cover

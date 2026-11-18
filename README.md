@@ -157,6 +157,15 @@ Drei Dinge, die dabei auffallen können und absichtlich gemeldet werden:
 * **Einzelne Kerne tauchen nur auf, wenn es keinen Gesamtwert gibt.** Der
   Paketwert ist für eine Lüfterkurve die brauchbare Zahl, und vierzig Zeilen
   machen die Auswahl unbrauchbar – genau wie unter Linux.
+* **Die Messhilfe antwortet, nennt den Prozessor aber nicht** – dann läuft sie
+  ohne Administratorrechte, und die Fühler im Prozessor hält Windows hinter
+  dieser Schwelle zurück. Die Oberfläche sagt das inzwischen ausdrücklich statt
+  zu schweigen.
+* **Die erste Antwort darf eine Weile brauchen.** LibreHardwareMonitor baut
+  seine Datei erst beim Fragen zusammen; gleich nach dem Start warten wir zwei
+  Sekunden, nicht eine halbe. Ist gar nichts erreichbar, antwortet Windows
+  sofort mit „abgelehnt“, die Frist kostet also nur dort Zeit, wo wirklich
+  jemand antworten will.
 
 Der Kühler selbst braucht HWiNFO nicht: ohne HWiNFO funktioniert alles wie
 bisher, nur eben mit den Temperaturen, die Windows von sich aus meldet.
@@ -167,6 +176,16 @@ geöffnet, Selbstdiagnose komplett, Oberfläche läuft, Lüfter und Licht folgen
 der Kurve. Die Linux-Seite bleibt die genauer nachgemessene. Wenn bei dir etwas
 nicht will, schick die Ausgabe von `llano selftest` zu den
 [Issues](../../issues); sie benennt jeden Schritt einzeln.
+
+Ein Fund verdient die Erwähnung, weil er drei Fassungen lang für Ratlosigkeit
+gesorgt hat: `HidP_GetCaps` schreibt die **vollständige** Kapazitätsstruktur –
+64 Byte, in neueren Windows-Fassungen 66 – und fragt nicht, wie groß das
+Gegenüber ist. Nachgebaut waren die fünf gelesenen Felder, zehn Byte. Der Rest
+landete im Speicher des Interpreters, und die Oberfläche kippte *später*, beim
+Fensterbauen, mit einer Zugriffsverletzung beim Aufräumen – ein Fehler, dessen
+Eigentuemer im eigenen Code an keiner Stelle aufzutauchen schien. Die
+Größenprüfungen in `tests/test_windows_strukturen.py` halten deshalb jetzt für
+jede Struktur fest, was sie fassen muss.
 
 Autostart gibt es beim Installer als Haken („Beim Anmelden starten“); er landet
 im Run-Schlüssel deines Kontos, nicht als Dienst.
@@ -237,7 +256,7 @@ sie beim Start tut, schreibt sie deshalb in den Einstellungsordner:
 In der Datei steht jeder Schritt des Starts, beginnend mit der Fassung:
 
 ```
-19:20:38 INFO   Oberflaeche startet (Fassung 1.1.10).
+19:20:38 INFO   Oberflaeche startet (Fassung 1.1.11).
 19:20:38 DEBUG  Die Oberflaechenbibliothek ist da; die Anwendung wird gebaut.
 19:20:38 INFO   gekoppelt an \\?\hid#vid_374a&pid_b101#7&2985dc16&0&0000#…
 19:20:38 DEBUG  Das Fenster ist gebaut und wird gezeigt (normal).
@@ -465,7 +484,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.10 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.11 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.
