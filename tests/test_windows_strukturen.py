@@ -44,11 +44,20 @@ class Strukturgroessen(unittest.TestCase):
         self.assertEqual(ctypes.sizeof(selbst), 32)
         self.assertEqual(getattr(selbst, "hEvent").offset, 24)
 
-    def test_geraetekennung_und_schnittstelle_passt(self):
-        self.assertEqual(ctypes.sizeof(self.geraet.HIDD_ATTRIBUTES), 8)
-        # 4 Byte Groessenangabe, 16 Byte Klassenkennung, 4 Byte Flags, 8 Byte
-        # Zeiger - auf 64 Bit, wie der Installer sie ausliefert.
-        self.assertEqual(ctypes.sizeof(self.geraet.SP_DEVICE_INTERFACE_DATA), 32)
+    def test_geraetekennung_und_schnittstelle_fassen_ihre_antwort(self):
+        # Was Windows von sich aus hineinschreibt, in Byte - einschliesslich der
+        # Fuellung, die der C-Compiler am Ende einer Struktur laesst. Uns ist
+        # die Fuellung gleichgueltig; uns kuemmert nur, dass unser Objekt
+        # mindestens so gross ist wie das, was ankommt.
+        for struktur, erwartet in ((self.geraet.HIDD_ATTRIBUTES, 12),
+                                   (self.geraet.SP_DEVICE_INTERFACE_DATA, 32),
+                                   (self.geraet.RAWINPUTDEVICELIST, 16)):
+            with self.subTest(struktur.__name__):
+                selbst = ctypes.sizeof(struktur)
+                self.assertGreaterEqual(
+                    selbst, erwartet,
+                    f"{struktur.__name__} fasst {selbst} Byte, Windows schreibt "
+                    f"{erwartet}")
 
 
 if __name__ == "__main__":
