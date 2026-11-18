@@ -24,16 +24,12 @@ pub fn zeile(pegel: &str, text: &str) {
 
 /// Stunde, Minute, Sekunde wie in der Python-Fassung - in der Ortszeit des
 /// Rechners, weil Menschen die Zeilen lesen.
+#[cfg(unix)]
 pub fn uhrzeit() -> String {
     let sekunden = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|frist| frist.as_secs() as libc::time_t)
         .unwrap_or(0);
-    zerlege(sekunden)
-}
-
-#[cfg(unix)]
-fn zerlege(sekunden: libc::time_t) -> String {
     let mut zeit = libc::tm {
         tm_sec: 0,
         tm_min: 0,
@@ -53,24 +49,55 @@ fn zerlege(sekunden: libc::time_t) -> String {
     format!("{:02}:{:02}:{:02}", zeit.tm_hour, zeit.tm_min, zeit.tm_sec)
 }
 
+/// Die Windows-Uhr: `GetLocalTime` fuellt diese sechzehn Bayt, fertig.
+///
+/// Der erste Versuch lief ueber `localtime_s`, und der Windows-Bauwagen
+/// meldete einen nicht aufloesbaren Namen. `localtime_s` ist naemlich keine
+/// exportierte Funktion, sondern ein Vorgang im Header, der je nach
+/// Voreinstellung auf `_localtime64_s` hinauslaeuft - und die Struktur dahinter
+/// ist die des C-Bausatzes, deren Felder hier niemand nachzaehlen will.
+/// `GetLocalTime` gehoert zu kernel32, ist in der Header-Sammlung dokumentiert
+/// und nennt Stunde, Minute und Sekunde in dieser Reihenfolge.
 #[cfg(not(unix))]
-fn zerlege(sekunden: libc::time_t) -> String {
-    // `localtime_s` will das Ergebnis zuerst und die Quelle danach; es gibt eine
-    // Fehlerzahl zurueck statt zu zeigen, wenn etwas nicht passt. Ohne Erfolg
-    // bleibt immerhin die Weltzeit, die immer noch besser ist als nichts.
-    let mut zeit: libc::tm = unsafe { std::mem::zeroed() };
-    let quellzeit = sekunden;
-    let erfolg = unsafe { localtime_s(&mut zeit, &quellzeit) };
-    if erfolg != 0 {
-        let tage = sekunden.div_euclid(86_400).rem_euclid(86_400);
-        return format!("{:02}:{:02}:{:02}", tage / 3600, tage / 60 % 60, tage % 60);
+pub fn uhrzeit() -> String {
+    let mut zeit = Ortszeit::leer();
+    unsafe { GetLocalTime(&mut zeit) };
+    format!("{:02}:{:02}:{:02}", zeit.stunde, zeit.minute, zeit.sekunde)
+}
+
+#[cfg(not(unix))]
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Ortszeit {
+    jahr: u16,
+    monat: u16,
+    wochentag: u16,
+    tag: u16,
+    stunde: u16,
+    minute: u16,
+    sekunde: u16,
+    tausendstel: u16,
+}
+
+#[cfg(not(unix))]
+impl Ortszeit {
+    fn leer() -> Self {
+        Self {
+            jahr: 0,
+            monat: 0,
+            wochentag: 0,
+            tag: 0,
+            stunde: 0,
+            minute: 0,
+            sekunde: 0,
+            tausendstel: 0,
+        }
     }
-    format!("{:02}:{:02}:{:02}", zeit.tm_hour, zeit.tm_min, zeit.tm_sec)
 }
 
 #[cfg(not(unix))]
 extern "system" {
-    fn localtime_s(aus: *mut libc::tm, quelle: *const libc::time_t) -> i32;
+    fn GetLocalTime(zeit: *mut Ortszeit);
 }
 
 #[cfg(test)]
@@ -88,6 +115,14 @@ mod tests {
             .iter()
             .enumerate()
             .all(|(stelle, ziffer)| stelle == 2 || stelle == 5 || ziffer.is_ascii_digit()));
+    }
+
+    #[cfg(not(unix))]
+    #[test]
+    fn die_ortszeit_ist_sechzehn_bayt() {
+        // SYSTEMTIME: acht Kurzahlen, ohne Polsterung, in der Reihenfolge des
+        // Headers. Wer die Felder umhaengt, kriegt Minuten in der Stunde.
+        assert_eq!(std::mem::size_of::<Ortszeit>(), 16);
     }
 
     #[test]
