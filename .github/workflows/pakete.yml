@@ -186,6 +186,9 @@ jobs:
         shell: bash
         run: |
           cargo build --release --manifest-path rust/Cargo.toml
+          # `out/` legt sonst erst der Installerbau an, und diese Mappe hier
+          # soll die einzelne Datei schon vor ihm enthalten.
+          mkdir -p out
           cp rust/target/release/llano-rs.exe dist/llano-control/
           cp rust/target/release/llano-rs.exe out/
           ls -l dist/llano-control/llano-rs.exe out/
