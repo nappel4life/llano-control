@@ -389,13 +389,17 @@ Kühler.
 
 ```bash
 cd rust && cargo test
-cargo run -- status        # liest den Kühler, schreibt nichts
+cargo run -- status                    # was macht der Kühler gerade?
+cargo run -- fan 45                    # schreiben, aber erst nachgemessen
 ```
 
-**Diese Fassung liest nur.** Kurve, Hintergrunddienst, Konfiguration und
-Windows fehlen noch; Schreiben bleibt bei `llano`, bis jeder Schreibweg am
-echten Gerät nachgemessen ist. Zwei getrennte Programme also, keine zwei
-Hälften eines. Einzelheiten in [rust/README.md](rust/README.md).
+Geschrieben wird erst, nachdem der Weg an diesem Pad gemessen war — Stufe,
+Farbe, Effekt, Takt, Helligkeit und Beleuchtung aus/an sind es inzwischen, und
+jeder Schreibbefehl hält vorher die Sperrdatei der Python-Fassung: Läuft
+`llano gui`, nennt das Programm deren Prozessnummer statt gegen sie zu schreiben.
+Kurve, Hintergrunddienst, Konfiguration und Windows fehlen noch. Zwei getrennte
+Programme also, keine zwei Hälften eines. Einzelheiten in
+[rust/README.md](rust/README.md).
 
 ## Verifiziert am Gerät
 

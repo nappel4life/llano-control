@@ -8,7 +8,7 @@
 //! Betriebssystem:
 //!
 //! * [`find_paths`]   - alle gefundenen Kuehler, leer wenn keiner
-//! * [`open_node`]    - einen Eintrag daraus oeffnen
+//! * [`Pad::open`]    - einen Eintrag daraus oeffnen
 //! * [`Pad::read_state`] - Zustand lesen, mit der Voranfrage, die das Geraet
 //!   braucht, und mit dem kurzen Wiederholen, das der erste Zugriff verlangt
 //! * [`Pad::write_state`] - schreiben und zuruecklesen
