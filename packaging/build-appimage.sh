@@ -30,13 +30,18 @@ rm -rf "$ROOT/dist" "$ROOT/build" "$APPDIR"
 
 echo "-- AppDir"
 mkdir -p "$APPDIR/usr/lib" "$APPDIR/usr/share/icons/hicolor/scalable/apps" \
-         "$APPDIR/usr/share/applications"
+         "$APPDIR/usr/share/applications" "$APPDIR/usr/share/metainfo"
 cp -a "$ROOT/dist/$NAME/." "$APPDIR/usr/lib/$NAME"
 
 cp "$ROOT/assets/llano.svg" "$APPDIR/usr/share/icons/hicolor/scalable/apps/$NAME.svg"
 cp "$ROOT/assets/llano.svg" "$APPDIR/$NAME.svg"
 cp "$ROOT/assets/llano.png" "$APPDIR/$NAME.png"
 cp "$ROOT/assets/llano.png" "$APPDIR/.DirIcon"
+
+# Damit ein Softwarezentrum die AppImage nicht als namenlos zeigt.
+source "$ROOT/packaging/appdata.sh"
+write_appdata "$ROOT/contrib/llano-control.appdata.xml" \
+    "$APPDIR/usr/share/metainfo/$NAME.appdata.xml" "$VERSION"
 
 cat > "$APPDIR/$NAME.desktop" <<'DESKTOP'
 [Desktop Entry]

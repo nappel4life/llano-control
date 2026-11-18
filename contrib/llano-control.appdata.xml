@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream-Beschreibung fuer Programmstarter und Softwarezentren. Die Bau-
+  skripte ersetzen die HTML-Markierung in der letzten Zeile durch einen
+  Eintrag fuer die gerade gebaute Version, damit hier kein alter Stand steht.
+
+  Die Beschreibungen sind absichtlich kurz und ohne Anführungszeichen, damit
+  die Datei in jeder Bauumgebung gleich bleibt.
+-->
+<component type="desktop-application">
+  <id>llano-control.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <name>llano Control</name>
+  <summary>Luefter und LEDs des llano V12 Ultra Notebookkuehlers steuern</summary>
+
+  <description>
+    <p>
+      Der Notebookkuehler llano V12 Ultra haelt unter Windows nur die
+      Herstellersoftware MythCool. Dieses Programm steuert ihn auch unter
+      Linux: Lueftergeschwindigkeit in Abhaengigkeit von den
+      Temperaturensoren des Notebooks, dazu Farben, Effekte, Takt und
+      Helligkeit der LEDs.
+    </p>
+    <p>
+      Es gibt eine Kommandozeile, einen Hintergrunddienst und eine Oberflaeche
+      mit Kurveneditor und Taskleisten-Symbol. Noetig ist nur eine Regel fuer
+      /dev/hidraw*, damit der angemeldete Benutzer das Geraet ohne Root
+      ansprechen darf; die Regel liegt bei.
+    </p>
+  </description>
+
+  <categories>
+    <category>System</category>
+    <category>Settings</category>
+    <category>HardwareSettings</category>
+  </categories>
+
+  <keywords>
+    <keyword>Kuehler</keyword>
+    <keyword>Luefter</keyword>
+    <keyword>Notebook</keyword>
+    <keyword>Temperatur</keyword>
+    <keyword>HID</keyword>
+  </keywords>
+
+  <url type="homepage">https://github.com/nappel4life/llano-control</url>
+  <url type="bugtracker">https://github.com/nappel4life/llano-control/issues</url>
+  <url type="help">https://github.com/nappel4life/llano-control#lesung</url>
+  <developer_name>nappel4life</developer_name>
+
+  <provides>
+    <binary>llano</binary>
+  </provides>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/nappel4life/llano-control/main/assets/screenshot.png</image>
+      <caption>Oberflaeche mit Luefterstufe, Temperaturenkurve und Farben</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/nappel4life/llano-control/main/assets/screenshot-kurve.png</image>
+      <caption>Kurvendialog mit der Reaktion der Luefter auf die Temperatur</caption>
+    </screenshot>
+  </screenshots>
+
+  <content_rating type="oars-1.1"/>
+
+  <!-- RELEASES -->
+</component>

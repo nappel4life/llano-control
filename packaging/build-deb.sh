@@ -29,6 +29,7 @@ mkdir -p "$PKG/DEBIAN" \
          "$PKG/usr/share/applications" \
          "$PKG/usr/share/icons/hicolor/scalable/apps" \
          "$PKG/usr/share/doc/$NAME" \
+         "$PKG/usr/share/metainfo" \
          "$PKG/usr/lib/udev/rules.d"
 
 echo "-- Paketinhalt"
@@ -63,6 +64,12 @@ sed "s|^Exec=.*|Exec=/usr/bin/llano gui|" "$ROOT/contrib/llano-control.desktop" 
     > "$PKG/usr/share/applications/$NAME.desktop"
 cp "$ROOT/assets/llano.svg" "$PKG/usr/share/icons/hicolor/scalable/apps/$NAME.svg"
 cp "$ROOT/contrib/70-llano.rules" "$PKG/usr/lib/udev/rules.d/70-llano.rules"
+
+# Die AppStream-Datei ist das, was ein Softwarezentrum ueber das Programm
+# erzaehlt: Kurzbeschreibung, Lizenz, ein Bild.
+source "$ROOT/packaging/appdata.sh"
+write_appdata "$ROOT/contrib/llano-control.appdata.xml" \
+    "$PKG/usr/share/metainfo/$NAME.appdata.xml" "$VERSION"
 install -m 644 "$ROOT/LICENSE" "$PKG/usr/share/doc/$NAME/copyright"
 gzip -9nc "$ROOT/README.md" > "$PKG/usr/share/doc/$NAME/README.md.gz"
 
@@ -117,6 +124,8 @@ chmod 755 "$PKG/DEBIAN/postinst" "$PKG/DEBIAN/prerm"
 
 OUTPUT="$OUT/${NAME}_${VERSION}_${ARCH}.deb"
 rm -f "$OUTPUT"
-dpkg-deb --build --root-owner-group "$PKG" "$OUTPUT"
+# XZ statt des Voreinstellungs: das koennen auch aeltere dpkg-Fassungen lesen,
+# und die paketierten Dateien sind damit nicht groesser.
+dpkg-deb --build --root-owner-group -Zxz "$PKG" "$OUTPUT"
 ls -lh "$OUTPUT"
 echo "Fertig: $OUTPUT"
