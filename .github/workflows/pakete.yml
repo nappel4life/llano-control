@@ -211,6 +211,27 @@ jobs:
           dist/llano-control/llano.exe selftest || true
           ls dist/llano-control | head
 
+      - name: Oberflaeche startet wirklich
+        # Der einzige Test, der zaehlt, ist der Doppelklick auf einem echten
+        # Windows - und der geschah bisher ausschliesslich bei jemandem, der
+        # den Kuehler am Kabel hat. Ein Programm, dessen Fenster nie aufgeht,
+        # ist aber kein Programm. Also auch hier: starten, laufen lassen, und
+        # wenn von selbst aufhoert, die Fehlerausgabe zeigen.
+        shell: pwsh
+        run: |
+          $fehler = "$env:RUNNER_TEMP\oberflaeche-fehler.txt"
+          $prozess = Start-Process -FilePath "$PWD\dist\llano-control\llano-control.exe" `
+              -ArgumentList "--minimized" -PassThru -RedirectStandardError $fehler
+          if ($prozess.WaitForExit(40000)) {
+            "Die Oberflaeche hat von sich aus beendet (Rueckgabe $($prozess.ExitCode)):"
+            Get-Content $fehler
+            exit 1
+          }
+          $prozess.Kill()
+          if ((Get-Item $fehler).Length -gt 0) { Get-Content $fehler }
+          "Die Oberflaeche lief nach 40 Sekunden noch - gut."
+        continue-on-error: true
+
       - name: Installer bauen
         shell: bash
         run: |

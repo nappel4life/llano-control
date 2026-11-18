@@ -1,4 +1,4 @@
-; Installationsprogramm fuer Windows (Inno Setup 6)
+﻿; Installationsprogramm fuer Windows (Inno Setup 6)
 ;
 ;   ISCC.exe /DVersion=1.1.1 packaging\windows\llano.iss
 ;
@@ -53,9 +53,11 @@ CloseApplications=force
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon";  Description: "Symbol auf dem Schreibtisch anlegen"
-Name: "autostart";    Description: "Beim Anmelden starten (Kuehler haelt die Kurve von allein)"
-Name: "pathicon";     Description: "llano.exe in den Suchpfad setzen"; Flags: unchecked
+; Die drei Aufgaben erkaeren sich hier selbst. Das Setup zeigt sonst Punkte an,
+; deren Folgen man erst viel spaeter merkt - und die man dann nicht ankreuzt.
+Name: "desktopicon";  Description: "Verknüpfung auf dem Desktop anlegen"
+Name: "autostart";    Description: "Bei jeder Anmeldung starten - der Kühler hält die Kurve auch ohne Fenster"
+Name: "pathicon";     Description: "llano.exe im Suchpfad anmelden - dann genügt `llano status` in jedem Eingabefenster"; Flags: unchecked
 
 [Files]
 Source: "..\..\dist\llano-control\*"; DestDir: "{app}"; \
@@ -63,9 +65,12 @@ Source: "..\..\dist\llano-control\*"; DestDir: "{app}"; \
 
 [Icons]
 Name: "{group}\{#MyAppName}";              Filename: "{app}\{#MyAppExeName}"; \
-    Comment: "Oberflaeche fuer Luefter und Beleuchtung"
+    Comment: "Oberfläche für Lüfter und Beleuchtung"
 Name: "{group}\llano (Kommandozeile)";     Filename: "{app}\{#MyCliExeName}"; \
-    Comment: "Kommandozeile, z. B. llano status"
+    Comment: "Kommandozeile, zum Beispiel: llano status"
+Name: "{group}\Kühler prüfen";             Filename: "{sys}\cmd.exe"; \
+    Parameters: "/k ""{app}\{#MyCliExeName}"" selftest"; \
+    Comment: "Zeigt, was dieser Rechner am Kühler erkennt - und was nicht"
 Name: "{group}\Handbuch lesen";            Filename: "{#MyAppURL}"
 Name: "{group}\{#MyAppName} deinstallieren"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}";        Filename: "{app}\{#MyAppExeName}"; \
@@ -79,10 +84,12 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; \
     Tasks: autostart
 
 [Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Oberflaeche jetzt starten"; \
+Filename: "{app}\{#MyAppExeName}"; Description: "Oberfläche jetzt starten"; \
     Flags: nowait postinstall skipifsilent runascurrentuser
-Filename: "{app}\{#MyCliExeName}"; Parameters: "selftest"; \
-    Description: "Pruefen, was Rechner und Kuehler zusammen koennen"; \
+; Ueber cmd /k bleibt das Fenster stehen: der Bericht ist der ganze Sinn des
+; Punktes, und ein Fenster, das sich selbst wieder schliesst, zeigt nichts.
+Filename: "{sys}\cmd.exe"; Parameters: "/k ""{app}\{#MyCliExeName}"" selftest"; \
+    Description: "Bericht anzeigen: was dieser Rechner am Kühler erkennt"; \
     Flags: nowait postinstall skipifsilent runascurrentuser
 
 [Code]
