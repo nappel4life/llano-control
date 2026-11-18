@@ -1,0 +1,28 @@
+[package]
+name = "llano-core"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.77"
+license = "GPL-3.0-or-later"
+description = "Protokoll, Gerätezugriff und Temperaturen des llano V12 Ultra Notebookkühlers"
+repository = "https://github.com/nappel4life/llano-control"
+
+# Eine Bibliothek und ein Kommandozeilenprogramm aus einem Quellbaum: Die
+# Bibliothek braucht das spätere Fenster ebenfalls.
+[lib]
+name = "llano_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "llano-rs"
+path = "src/main.rs"
+
+[dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+serde_json = "1.0"
+
+[profile.release]
+strip = true
+lto = "thin"

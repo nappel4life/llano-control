@@ -1,0 +1,377 @@
+{
+  "erklaerung": "Erzeugt von tools/protokoll-vektoren.py aus der am Geraet geprueften Python-Fassung. Beide Fassungen muessen diese Berichte Byte fuer Byte bauen und gleich lesen.",
+  "protokoll": {
+    "vendor_id": 14154,
+    "product_id": 45313,
+    "koerper_laenge": 7,
+    "puffer_laenge": 9,
+    "befehl_beleuchtung": 0,
+    "befehl_luefter": 1,
+    "effekt_aus_flag": 128,
+    "farben": {
+      "0": "rot",
+      "1": "hellblau",
+      "2": "gruen",
+      "3": "lila",
+      "4": "orange"
+    },
+    "effekte": {
+      "0": "durchgehend",
+      "1": "atmend",
+      "2": "regenbogen",
+      "3": "lauflicht",
+      "4": "zonen"
+    }
+  },
+  "pruefsummen": [
+    {
+      "koerper": "01 01 00 00 00 00 ff",
+      "summe": "fe"
+    },
+    {
+      "koerper": "01 28 00 00 02 00 ff",
+      "summe": "d5"
+    },
+    {
+      "koerper": "01 64 00 00 02 00 ff",
+      "summe": "99"
+    },
+    {
+      "koerper": "01 01 00 00 02 00 ff",
+      "summe": "fc"
+    },
+    {
+      "koerper": "01 64 00 00 02 00 ff",
+      "summe": "99"
+    },
+    {
+      "koerper": "01 37 01 84 03 03 00",
+      "summe": "3c"
+    },
+    {
+      "koerper": "00 42 00 01 03 02 80",
+      "summe": "37"
+    },
+    {
+      "koerper": "00 00 00 00 00 00 ff",
+      "summe": "00"
+    },
+    {
+      "koerper": "00 19 00 82 04 01 c8",
+      "summe": "97"
+    },
+    {
+      "koerper": "00 21 00 00 01 00 ff",
+      "summe": "de"
+    }
+  ],
+  "schreiben": [
+    {
+      "name": "stufe eins",
+      "befehl": "luefter",
+      "parameter": {
+        "speed": 1,
+        "color": 0
+      },
+      "bytes": "00 01 01 00 00 00 00 ff fe"
+    },
+    {
+      "name": "stufe vierzig gruen",
+      "befehl": "luefter",
+      "parameter": {
+        "speed": 40,
+        "color": 2
+      },
+      "bytes": "00 01 28 00 00 02 00 ff d5"
+    },
+    {
+      "name": "stufe hundert",
+      "befehl": "luefter",
+      "parameter": {
+        "speed": 100,
+        "color": 2
+      },
+      "bytes": "00 01 64 00 00 02 00 ff 99"
+    },
+    {
+      "name": "zu niedrig wird auf eins gehoben",
+      "befehl": "luefter",
+      "parameter": {
+        "speed": 0,
+        "color": 2
+      },
+      "bytes": "00 01 01 00 00 02 00 ff fc"
+    },
+    {
+      "name": "zu hoch wird gedeckelt",
+      "befehl": "luefter",
+      "parameter": {
+        "speed": 150,
+        "color": 2
+      },
+      "bytes": "00 01 64 00 00 02 00 ff 99"
+    },
+    {
+      "name": "duester und aus",
+      "befehl": "luefter",
+      "parameter": {
+        "speed": 55,
+        "color": 3,
+        "effect": 4,
+        "effect_speed": 3,
+        "brightness": 0,
+        "light_on": false,
+        "powered_on": false
+      },
+      "bytes": "00 01 37 01 84 03 03 00 3c"
+    },
+    {
+      "name": "beleuchtung laesst die Stufe stehen",
+      "befehl": "beleuchtung",
+      "parameter": {
+        "fan_speed": 66,
+        "color": 3,
+        "effect": 1,
+        "effect_speed": 2,
+        "brightness": 128
+      },
+      "bytes": "00 00 42 00 01 03 02 80 37"
+    },
+    {
+      "name": "beleuchtung mit Stufe null",
+      "befehl": "beleuchtung",
+      "parameter": {
+        "fan_speed": 0,
+        "color": 0,
+        "effect": 0,
+        "brightness": 255
+      },
+      "bytes": "00 00 00 00 00 00 00 ff 00"
+    },
+    {
+      "name": "beleuchtung aus mit Effekt",
+      "befehl": "beleuchtung",
+      "parameter": {
+        "fan_speed": 25,
+        "color": 4,
+        "effect": 2,
+        "effect_speed": 1,
+        "brightness": 200,
+        "light_on": false
+      },
+      "bytes": "00 00 19 00 82 04 01 c8 97"
+    },
+    {
+      "name": "volle Helligkeit",
+      "befehl": "beleuchtung",
+      "parameter": {
+        "fan_speed": 33,
+        "color": 1,
+        "effect": 0,
+        "brightness": 255
+      },
+      "bytes": "00 00 21 00 00 01 00 ff de"
+    }
+  ],
+  "lesen": [
+    {
+      "name": "stufe eins",
+      "bytes": "00 01 01 00 00 00 00 ff fe",
+      "zustand": {
+        "mode": 1,
+        "fan_speed": 1,
+        "rpm_anzeige": 300,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 0,
+        "color_name": "rot",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "stufe vierzig gruen",
+      "bytes": "00 01 28 00 00 02 00 ff d5",
+      "zustand": {
+        "mode": 1,
+        "fan_speed": 40,
+        "rpm_anzeige": 1300,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 2,
+        "color_name": "gruen",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "stufe hundert",
+      "bytes": "00 01 64 00 00 02 00 ff 99",
+      "zustand": {
+        "mode": 1,
+        "fan_speed": 100,
+        "rpm_anzeige": 2800,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 2,
+        "color_name": "gruen",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "zu niedrig wird auf eins gehoben",
+      "bytes": "00 01 01 00 00 02 00 ff fc",
+      "zustand": {
+        "mode": 1,
+        "fan_speed": 1,
+        "rpm_anzeige": 300,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 2,
+        "color_name": "gruen",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "zu hoch wird gedeckelt",
+      "bytes": "00 01 64 00 00 02 00 ff 99",
+      "zustand": {
+        "mode": 1,
+        "fan_speed": 100,
+        "rpm_anzeige": 2800,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 2,
+        "color_name": "gruen",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "duester und aus",
+      "bytes": "00 01 37 01 84 03 03 00 3c",
+      "zustand": {
+        "mode": 1,
+        "fan_speed": 55,
+        "rpm_anzeige": 1700,
+        "powered_on": false,
+        "light_on": false,
+        "effect": 4,
+        "effect_name": "zonen",
+        "color": 3,
+        "color_name": "lila",
+        "effect_speed": 3,
+        "brightness": 0
+      }
+    },
+    {
+      "name": "beleuchtung laesst die Stufe stehen",
+      "bytes": "00 00 42 00 01 03 02 80 37",
+      "zustand": {
+        "mode": 0,
+        "fan_speed": 66,
+        "rpm_anzeige": 1900,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 1,
+        "effect_name": "atmend",
+        "color": 3,
+        "color_name": "lila",
+        "effect_speed": 2,
+        "brightness": 128
+      }
+    },
+    {
+      "name": "beleuchtung mit Stufe null",
+      "bytes": "00 00 00 00 00 00 00 ff 00",
+      "zustand": {
+        "mode": 0,
+        "fan_speed": 0,
+        "rpm_anzeige": 300,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 0,
+        "color_name": "rot",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "beleuchtung aus mit Effekt",
+      "bytes": "00 00 19 00 82 04 01 c8 97",
+      "zustand": {
+        "mode": 0,
+        "fan_speed": 25,
+        "rpm_anzeige": 900,
+        "powered_on": true,
+        "light_on": false,
+        "effect": 2,
+        "effect_name": "regenbogen",
+        "color": 4,
+        "color_name": "orange",
+        "effect_speed": 1,
+        "brightness": 200
+      }
+    },
+    {
+      "name": "volle Helligkeit",
+      "bytes": "00 00 21 00 00 01 00 ff de",
+      "zustand": {
+        "mode": 0,
+        "fan_speed": 33,
+        "rpm_anzeige": 1100,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 0,
+        "effect_name": "durchgehend",
+        "color": 1,
+        "color_name": "hellblau",
+        "effect_speed": 0,
+        "brightness": 255
+      }
+    },
+    {
+      "name": "antwort des eigenen Drehrads",
+      "bytes": "00 88 3e 00 01 02 01 00 35",
+      "zustand": {
+        "mode": 136,
+        "fan_speed": 62,
+        "rpm_anzeige": 1800,
+        "powered_on": true,
+        "light_on": true,
+        "effect": 1,
+        "effect_name": "atmend",
+        "color": 2,
+        "color_name": "gruen",
+        "effect_speed": 1,
+        "brightness": 0
+      }
+    }
+  ],
+  "zurueckweisen": [
+    {
+      "name": "zu kurz",
+      "bytes": "00 01 28 00 00 00 00",
+      "grund": "zu kurz"
+    },
+    {
+      "name": "Summe verdreht",
+      "bytes": "00 01 28 00 00 00 00 ff 28",
+      "grund": "pruefsumme"
+    }
+  ]
+}

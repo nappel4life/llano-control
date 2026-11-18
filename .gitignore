@@ -33,3 +33,6 @@ probe*.png
 
 # Werkzeug fuer den AppImage-Bau
 /.bau/
+
+# Rust-Bauzeug
+/rust/target/
