@@ -209,8 +209,8 @@ def _enumerate_interfaces() -> tuple[list[str], dict]:
     search itself was refused" look exactly alike from the outside -- both
     leave an empty list -- and they want completely different answers.
     """
-    report = {"klasse": "ok", "gesichtet": 0, "unlesbar": 0, "unlesbar_code": 0,
-              "anfangs_code": 0}
+    report = {"klasse": "ok", "gesichtet": 0, "unlesbar": 0, "anfangs_code": 0,
+              "detail": {}}
     guid = GUID()
     hid.HidD_GetHidGuid(ctypes.byref(guid))
     info = setupapi.SetupDiGetClassDevsW(
@@ -234,13 +234,15 @@ def _enumerate_interfaces() -> tuple[list[str], dict]:
                     report["anfangs_code"] = _last_error()
                 break  # ERROR_NO_MORE_ITEMS, or a driver that will not talk
             report["gesichtet"] += 1
-            path = _interface_detail(info, ctypes.byref(data))
+            detail = {}
+            path = _interface_detail(info, ctypes.byref(data), detail)
             if path:
                 paths.append(path)
+            elif not report["detail"]:
+                report["unlesbar"] += 1
+                report["detail"] = detail
             else:
                 report["unlesbar"] += 1
-                if not report["unlesbar_code"]:
-                    report["unlesbar_code"] = _last_error()
             index += 1
     finally:
         setupapi.SetupDiDestroyDeviceInfoList(info)
@@ -252,26 +254,44 @@ def _interface_paths() -> list[str]:
     return _enumerate_interfaces()[0]
 
 
-def _interface_detail(info, interface_data) -> str | None:
+def _interface_detail(info, interface_data, fehler=None) -> str | None:
+    """The path to one interface.
+
+    ``fehler`` is an optional dict that learns why a path could not be read.
+    Asked for by the selftest only: on a real machine the numbers in it are the
+    difference between "Windows had nothing to say" and "Windows said it and we
+    did not understand it", which is a difference nobody should have to guess
+    at from a photograph.
+    """
     needed = wintypes.DWORD(0)
     setupapi.SetupDiGetDeviceInterfaceDetailW(
         info, interface_data, None, 0, ctypes.byref(needed), None
     )
-    size = max(needed.value or 0, _DETAIL_BUFFER_BYTES)
+    erwartet = needed.value or 0
+    size = max(erwartet, _DETAIL_BUFFER_BYTES)
     buf = ctypes.create_string_buffer(size)
     ctypes.cast(buf, ctypes.POINTER(wintypes.DWORD))[0] = _DETAIL_CB_SIZE
-    if not setupapi.SetupDiGetDeviceInterfaceDetailW(
+    bekommen = setupapi.SetupDiGetDeviceInterfaceDetailW(
         info, interface_data, buf, size, ctypes.byref(needed), None
-    ):
-        return None
-    raw = buf.raw[4:size]
-    end = raw.find(b"\x00\x00")
-    if end < 0:
-        end = len(raw)
-    try:
-        return raw[:end].decode("utf-16-le") or None
-    except UnicodeDecodeError:
-        return None
+    )
+    pfad = None
+    if bekommen:
+        raw = buf.raw[4:size]
+        end = raw.find(b"\x00\x00")
+        if end < 0:
+            end = len(raw)
+        try:
+            pfad = raw[:end].decode("utf-16-le") or None
+        except UnicodeDecodeError:
+            pfad = None
+    if pfad is None and fehler is not None:
+        fehler.update({
+            "aufgerufen": "ok" if bekommen else f"abgelehnt (Fehler {_last_error()})",
+            "erwartet": erwartet,
+            "puffer": size,
+            "anfang": buf.raw[:24].hex(" "),
+        })
+    return pfad
 
 
 def _raw_device_name(handle) -> str | None:
@@ -356,9 +376,12 @@ def scan_report() -> list[str]:
         f"Klassensuche   : {report['klasse']}; {report['gesichtet']} "
         f"Schnittstellen gelesen, {report['unlesbar']} ohne verwertbaren Pfad"
     ]
-    if report["unlesbar_code"]:
-        lines.append(f"                 : letzter Fehler "
-                     f"{report['unlesbar_code']}")
+    detail = report.get("detail") or {}
+    if detail:
+        lines.append(
+            f"                 : Pfadlesung {detail['aufgerufen']}, Windows "
+            f"nannte {detail['erwartet']} Byte, gelesen in {detail['puffer']}")
+        lines.append(f"                 : Anfang des Puffers {detail['anfang']}")
     if report["anfangs_code"]:
         lines.append(f"                 : die Aufzaehlung brach schon beim "
                      f"ersten Geraet ab (Fehler {report['anfangs_code']})")
