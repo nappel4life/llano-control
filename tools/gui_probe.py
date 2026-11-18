@@ -430,12 +430,16 @@ def main() -> int:
     print("Helligkeitsbalken:")
     bar = window.brightness
     middle_x = bar.width() / 2.0
+    # Beide Werte werden direkt nach der Mausgesture abgelesen und nicht erst
+    # nach dem Pumpen: Die standige Auffrischung holt den Balken zurueck auf
+    # den Wert des Kuehlers, und je nach Zeitpunkt fiel diese Pruefung auf dem
+    # Bauwagen mal durch und mal nicht.
     bar.mousePressEvent(FakeMouseEvent(left, middle_x, bar.height() - 3))
-    pump(0.4)
     grab_at_bottom = bar.value()
-    bar.mouseMoveEvent(FakeMouseEvent(left, middle_x, bar.height() / 2.0))
     pump(0.4)
+    bar.mouseMoveEvent(FakeMouseEvent(left, middle_x, bar.height() / 2.0))
     grab_in_middle = bar.value()
+    pump(0.4)
     # Verglichen wird mit der Mitte desselben Balkens, nicht mit einem
     # Wunschwert: Die Pruefung soll sagen, dass unten dunkler ist als oben --
     # wie hoch der Balken gerade zufaellig ist, spielt dabei keine Rolle.
