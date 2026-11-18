@@ -273,6 +273,32 @@ def absturzbericht(ausnahme: BaseException) -> str:
     return ort
 
 
+def protokolldatei() -> str:
+    """Ein Protokoll im Ordner der Einstellungen - fuer Starts ohne Fenster.
+
+    Die verpackte Oberflaeche hat kein Terminal, in dem sie etwas sagen
+    koennte. Was sie beim Start tut, liegt dann neben ihrer Fehlerdatei, und
+    beide zusammen sind der Bericht, den jemand abschicken kann, der nur einen
+    Doppelklick gemacht hat.
+    """
+    ordner = os.path.dirname(config_mod.config_path())
+    ort = os.path.join(ordner, "oberflaeche.txt")
+    try:
+        os.makedirs(ordner, exist_ok=True)
+        zeiger = logging.FileHandler(ort, encoding="utf-8")
+    except OSError:
+        return ""
+    zeiger.setFormatter(logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(message)s", datefmt="%Y-%m-%d %H:%M:%S"))
+    llano = logging.getLogger("llano")
+    llano.addHandler(zeiger)
+    if llano.level == logging.NOTSET or llano.level > logging.INFO:
+        # Ohne diese Zeile bliebe die Datei leer, wenn die Meldungsstufe nur
+        # der Grundordnung gesetzt war - und die kennt ein Doppelklick nicht.
+        llano.setLevel(logging.INFO)
+    return ort
+
+
 def cmd_gui(args) -> int:
     try:
         from .gui import run
@@ -288,6 +314,7 @@ def cmd_gui(args) -> int:
         format="%(asctime)s %(levelname)-7s %(message)s",
         datefmt="%H:%M:%S",
     )
+    protokolldatei()
     try:
         return run(start_minimized=args.minimized, tray_only=args.tray)
     except Exception as exc:                          # noqa: BLE001 - der letzte Zeuge
