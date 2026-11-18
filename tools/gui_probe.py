@@ -215,6 +215,16 @@ def main() -> int:
     apply_theme(app)
     controller = loop.Controller(config_mod.load())
     controller.cfg["sensors"] = ["nvidia:GPU"]          # damit der Test planbar bleibt
+    if not controller.sensors.read():
+        # Ein Bauwagen ohne Temperaturensoren (virtuelle Maschinen haben keine)
+        # kann nicht prüfen, was es nicht gibt. Zwei Standwerte setzen, damit
+        # die Pruefung unten trotzdem etwas heisst. Auf einem echten Notebook
+        # wird dieser Zweig nicht betreten.
+        def stand_in_temps(collapse: bool = True) -> dict:
+            return {"coretemp:Package id 0": 61.5, "nvidia:GPU": 57.0}
+
+        controller.sensors.read = stand_in_temps
+        print("Hinweis: dieser Rechner meldet keine Sensoren, Standwerte eingesetzt")
     window = MainWindow(controller)
     window.resize(1000, 720)
     window.show()
