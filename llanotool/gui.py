@@ -1424,7 +1424,18 @@ def run(controller: Controller | None = None, start_minimized: bool = False,
 
 def _run_window(app: QApplication, controller: Controller, wake: QuitWatcher,
                 start_minimized: bool, tray_only: bool) -> int:
-    controller = controller or config_and_controller()
+    if controller is None:
+        try:
+            controller = config_and_controller()
+        except AlreadyRunning as exc:
+            # Ein Doppelklick auf das Symbol darf nicht einfach ins Leere laufen:
+            # die Meldung ging bisher auf eine Konsole, die ein verpacktes
+            # Programm gar nicht hat. Am Terminal genugt der Text, sonst das
+            # Fenster -- sonst scheint das Programm nur bose zu sein.
+            print(f"Fehler: {exc}")
+            if not sys.stdout or not sys.stdout.isatty():
+                QMessageBox.warning(None, WINDOW_TITLE, str(exc))
+            return 0
     if controller.cfg.get("power_on_start", True):
         controller.set_power(True, quiet=True)
     window = MainWindow(controller)
@@ -1506,9 +1517,6 @@ class QuitWatcher:
 
 
 def config_and_controller() -> Controller:
-    try:
-        controller = Controller(config_mod.load())
-        controller.lock.acquire()
-    except AlreadyRunning as exc:
-        raise SystemExit(f"Fehler: {exc}")
+    controller = Controller(config_mod.load())
+    controller.lock.acquire()          # AlreadyRunning, wenn ein anderer schon am Geraet sitzt
     return controller
