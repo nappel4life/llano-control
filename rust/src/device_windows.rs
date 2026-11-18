@@ -24,7 +24,7 @@
 //! * Lesen und Schreiben: `HidD_GetFeature` und `HidD_SetFeature`, jeweils mit
 //!   dem Puffer in Berichtslaenge.
 //!
-//! Alle Bibliotheken liegen im Betriebssystem (`hid`, `hidclass`, `setupapi`,
+//! Alle Bibliotheken liegen im Betriebssystem (`hid`, `setupapi`,
 //! `kernel32`); eine zusatzliche Abhaengigkeit braucht dieses Modul nicht.
 //!
 //! # Die Erkennung sitzt im Pfad, nicht im Produktnamen
@@ -47,8 +47,12 @@
 //! * [`ffi::HidpCaps`] hat die vollen 64 Byte. Die Python-Fassung deklariert
 //!   nur die fnf ersten Felder (10 Byte), `HidP_GetCaps` schreibt aber den
 //!   ganzen Satz - dort landeten 54 Byte hinter dem Puffer.
-//! * `HidP_GetCaps` liegt in `hidclass.dll`, nicht in `hid.dll` wie der Rest
-//!   der `Hid`-Aufrufe.
+//! * `HidP_GetCaps` wird aus `hid.dll` geholt, wie die Python-Fassung es auch
+//!   tut. Der_header (hidpi.h) verspricht `Hidclass.lib`; die Importbibliothek
+//!   liegt aber im Treiberbaukasten und nicht im SDK, ein Windows-Bauwagen
+//!   ohne WDK verliert beim Binden mit `LNK1181: hidclass.lib`. Der
+//!   Windows-Bauwagen hier ist genau so einer, und `hid.lib` kennt die
+//!   Funktion - der Bindevorgang ist der Beleg.
 //! * [`ffi::Overlapped`] entspricht dem Header (24 Byte auf x64, `hEvent` an
 //!   Stelle 16). Die Python-Fassung haelt `Internal`/`InternalHigh` fuer
 //!   Zeiger und schiebt `hEvent` damit auf Stelle 32 - ihre Eingabemeldungen
@@ -333,12 +337,9 @@ mod ffi {
             PreparsedData: *mut *mut c_void,
         ) -> i32;
         pub fn HidD_FreePreparsedData(PreparsedData: *mut c_void) -> i32;
-    }
-
-    // Die Berichtslaengen liegen woanders im Betriebssystem als der Rest:
-    // HidP_GetCaps gehoert zu hidclass.dll (hidclass.lib, Header hidpi.h).
-    #[link(name = "hidclass")]
-    extern "system" {
+        // Die Berichtslaengen. Der Header verspricht Hidclass.lib, das ist eine
+        // Treiber-Importbibliothek; im Anwendungs-Pfad steckt die Funktion in
+        // hid.dll, von wo sie auch die Python-Fassung holt.
         pub fn HidP_GetCaps(PreparsedData: *mut c_void, Capabilities: *mut HidpCaps) -> i32;
     }
 
