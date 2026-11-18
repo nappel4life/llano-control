@@ -519,6 +519,37 @@ def main() -> int:
     expect("zwei Punkte bleiben immer uebrig", len(controller.cfg["curve"]) >= 2)
     print(f"Bilder: {out} und {out.replace('.png', '-kurve.png')}")
 
+    # ---- Die Einstellungsdatei von frueher --------------------------------
+    # Ein Deinstallieren laesst die Datei mit Absicht zurueck, und genau so eine
+    # alte oder fremde Datei hat die Oberflaeche schon sterben lassen, nachdem
+    # sie den Kuehler eingeschaltet hatte: kein Fenster, keine Meldung, und nach
+    # einer Neuinstallation immer noch kein Fenster. Deshalb wird das Fenster
+    # hier noch einmal mit zerstoerten Werten gebaut - es muss aufgehen.
+    FEINDE = [
+        {}, {"mode": None}, {"mode": "kurve"}, {"mode": "web"},
+        {"manual_speed": None}, {"sensors": None}, {"sensors": []},
+        {"hysteresis": None}, {"poll_seconds": 0}, {"write_interval": "drei"},
+        {"light": None}, {"light": {"color": 99}}, {"light": {"speed": None}},
+        {"curve": {"45": 20}}, {"curve": [[60, 50]]}, {"power_on_start": "nein"},
+    ]
+    aufgehen = 0
+    for zusatz in FEINDE:
+        cfg = config_mod.sauber(zusatz)
+        cfg["sensors"] = ["nvidia:GPU"]
+        fremd = loop.Controller(cfg)
+        fremd.sensors.read = controller.sensors.read
+        try:
+            fenster = MainWindow(fremd)
+        except Exception as ausnahme:                             # noqa: BLE001
+            expect(f"Fenster bei {zusatz}", False)
+            print(f"        {type(ausnahme).__name__}: {ausnahme}")
+            continue
+        fenster.worker.stop()
+        fenster.deleteLater()
+        aufgehen += 1
+    expect(f"{len(FEINDE)} zerstoerte Einstellungsdateien lassen ein Fenster zu",
+           aufgehen == len(FEINDE))
+
     window.worker.stop()
     if failures:
         print(f"\n{len(failures)} Punkt(e) fehlgeschlagen: {', '.join(failures)}")

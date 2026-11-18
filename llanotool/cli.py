@@ -355,14 +355,33 @@ def cmd_selftest(args) -> int:
     import os
     import platform
 
+    from . import __version__
     from . import config as _cfg
     from .loop import DeviceLock, lock_path, read_locked_pid
 
     print(f"Betriebssystem : {platform.system()} {platform.release()} "
           f"({platform.machine()})")
     print(f"Python         : {platform.python_version()}")
+    print(f"Fassung        : {__version__}")
     print(f"Gerateweg      : {backend.__name__.split('.')[-1]}")
+    # Das Einlesen sagt, was aus der Datei nicht zu gebrauchen war. In diesem
+    # Bericht soll das aber unter der Konfiguration stehen und nicht ueber ihr,
+    # also werden die Meldungen zuerst gesammelt.
+    zerstoert: list[str] = []
+    cfg = _cfg.load(zerstoert)
     print(f"Konfiguration  : {_cfg.config_path()}")
+    # Ein Deinstallieren laesst die Einstellungsdatei absichtlich zurueck. Das
+    # ist gut fuer die Kurve und verwirrend fuer die Fassung, die sie danach
+    # vorfindet, also steht hier, wann sie zuletzt geschrieben wurde.
+    herkunft = str(cfg.get("version") or "").strip()
+    if not herkunft:
+        print("                 : von diesem Programm noch nicht geschrieben")
+    elif herkunft != __version__:
+        print(f"                 : uebernommen aus Fassung {herkunft}")
+    else:
+        print("                 : von dieser Fassung geschrieben")
+    for meldung in zerstoert:
+        print(f"                 : {meldung}")
     print(f"Sperrdatei     : {lock_path()}")
 
     # Dieselbe Datei wie bei der Rust-Fassung, und nur sie verhindert, dass zwei

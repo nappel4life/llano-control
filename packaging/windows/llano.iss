@@ -1,4 +1,4 @@
-﻿; Installationsprogramm fuer Windows (Inno Setup 6)
+; Installationsprogramm fuer Windows (Inno Setup 6)
 ;
 ;   ISCC.exe /DVersion=1.1.1 packaging\windows\llano.iss
 ;
@@ -93,6 +93,27 @@ Filename: "{sys}\cmd.exe"; Parameters: "/k ""{app}\{#MyCliExeName}"" selftest"; 
     Flags: nowait postinstall skipifsilent runascurrentuser
 
 [Code]
+// Die Einstellungsdatei bleibt beim Deinstallieren absichtlich liegen: sie
+// enthält die Lüfterkurve, die sich jemand erarbeitet hat, und ein Update soll
+// sie nicht kosten. Was dabei leicht übersehen wird: Dieselbe Datei überlebt
+// auch einen Wechsel der Fassung, und ein Feldbericht zeigte genau daraus den
+// Verdacht, das neue Programm sei kaputt. Also fragt der Deinstaller jetzt
+// direkt nach - und die Fassung selbst kommt ohnehin mit jeder alten Datei
+// zurecht, seit sie beim Lesen geformt wird.
+var
+  EinstellungenWeg: Boolean;
+
+function InitializeUninstall(): Boolean;
+begin
+  EinstellungenWeg := (MsgBox(
+    'Auch die Einstellungen löschen?' + #13#10 + #13#10 +
+    'Sie liegen unter AppData\Roaming\llano: die Lüfterkurve, die gewählten'
+    + ' Messstellen, die Beleuchtung und die Protokolle der Oberfläche.'
+    + #13#10 + 'Beim Update auf eine neue Fassung kannst du sie getrost behalten.',
+    mbConfirmation, MB_YESNO) = IDYES);
+  Result := True;
+end;
+
 // Der Suchpfad bekommt den Ordner nur, wenn die Aufgabe gewaehlt wurde - und
 // verliert ihn beim Deinstallieren auch wieder.
 procedure CurStepChanged(CurStep: TSetupStep);
@@ -120,6 +141,14 @@ var
   App: String;
 begin
   if CurUninstallStep <> usPostUninstall then Exit;
+  if EinstellungenWeg then
+  begin
+    // Der Programmdatenordner enthaelt ausser der Kurve auch die Protokolle,
+    // die die Oberflaeche seit der 1.1.4 dazulegt.
+    DelTree(ExpandConstant('{userappdata}\llano'), True, True, True);
+    DelTree(ExpandConstant('{localappdata}\llano'), True, True, True);
+    Log('Einstellungen und Protokolle geloescht');
+  end;
   App := ExpandConstant('{app}');
   if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
       'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',

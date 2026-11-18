@@ -270,6 +270,23 @@ Anzeigen, was der Dienst tut, ohne etwas zu schreiben:
 Die NVIDIA-Temperatur kommt über `nvidia-smi`, alles andere direkt aus
 `/sys/class/hwmon`.
 
+### Wenn die Datei von woanders herkommt
+
+Die Einstellungsdatei überlebt ein Deinstallieren mit Absicht – sie enthält die
+Kurve, die sich jemand erarbeitet hat. Damit liegt sie nach einer
+Neuinstallation oder nach einem Wechsel von und zur Rust-Fassung immer noch da,
+und deshalb darf darin alles Mögliche stehen: fehlende Schlüssel, `null`, Texte
+statt Zahlen, ein Modus `"kurve"`. Beim Lesen wird jeder Wert in Form gebracht;
+worauf nicht zu bauen war, sagt das Programm dazu, und `llano selftest` nennt,
+aus welcher Fassung die Datei stammt und wann sie zuletzt geschrieben wurde.
+Beim Deinstallieren unter Windows fragt der Installer nach, ob die Einstellungen
+auch weg sollen.
+
+Vor 1.1.5 genügte unter Umständen ein einziger unbrauchbarer Wert, um die
+Oberfläche beim Start lautlos sterben zu lassen: Der Kühler war eingeschaltet,
+das Fenster kam nie, und weil die Datei das Deinstallieren übersteht, half auch
+ein neues Programm nicht.
+
 ## Protokoll
 
 Der Kühler meldet eine Vendor-HID-Schnittstelle ohne Report-IDs: ein
@@ -354,7 +371,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.4 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.1.5 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.
