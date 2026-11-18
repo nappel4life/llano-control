@@ -25,7 +25,7 @@ und ein Windows-Installationsprogramm, siehe [Einbau](#einbau).
 
 Fertige Dateien liegen bei jeder
 [Veröffentlichung](../../releases "alle Versionen") bereit — die
-[neueste](../../releases/latest "neueste Fassung") hat immer diese vier Stücke.
+[neueste](../../releases/latest "neueste Fassung") hat immer diese fünf Stücke.
 `<Version>` ist dabei die Zahl im Namen, seit jeher auch die Zahl, die
 `llano --version` sagt:
 
@@ -35,11 +35,18 @@ Fertige Dateien liegen bei jeder
 | `llano-control_<Version>_all.deb` | Debian, Ubuntu, Mint | `sudo apt install ./llano-control_<Version>_all.deb` |
 | `llano-control-<Version>-x86_64.AppImage` | fast jede Distribution | `chmod +x` und doppelklicken |
 | `llano-control-<Version>-linux-x86_64.tar.gz` | Distributionen ohne libfuse2 | entpacken, `./llano-gui` |
+| `llano-rs.exe` | Windows, ohne etwas zu installieren | in ein Kommandofenster: `llano-rs status` |
 
 Das `.deb` bringt `llano` nach `/usr/bin` und legt ausser Menüeintrag und
 Symbol auch die udev-Regel ins System — nach dem Einstecken gehört der Kühler
 dem angemeldeten Benutzer, ohne dass du etwas kopierst. AppImage und der
 tragbare Ordner installieren nichts; PyQt6 ist darin schon enthalten.
+
+Das kleine Programm ohne Qt, `llano-rs`, steckt in den meisten Stücken schon
+drin: im `.deb` als `/usr/bin/llano-rs`, im tragbaren Ordner als `./llano-rs`,
+im Windows-Installer neben `llano.exe`. Die einzelne `.exe` hier ist für
+Windows ohne Installation; die AppImage lässt es draussen, weil ein zweites
+Programm in einer einzigen Datei schwer zu erreichen ist.
 
 Ohne Paket genügt das Auschecken, der Starter im Ordner läuft sofort:
 
