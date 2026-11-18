@@ -15,6 +15,12 @@ from unittest import mock
 
 from llanotool import cli
 
+try:                                     # der Prueflauf ohne Oberflaeche kennt kein Qt
+    import llanotool.gui                 # noqa: F401
+    ohne_oberflaeche = False
+except ImportError:
+    ohne_oberflaeche = True
+
 
 class Startprotokoll(unittest.TestCase):
     def setUp(self):
@@ -72,6 +78,8 @@ class Startprotokoll(unittest.TestCase):
         cli.protokolldatei()
         self.assertTrue(faulthandler.is_enabled())
 
+    @unittest.skipIf(ohne_oberflaeche,
+                     "ohne PyQt6 gibt es keinen Start, der aufhalfen konnte")
     def test_der_anfang_steht_drin_und_sein_Ende_auch(self):
         with mock.patch("llanotool.gui.run",
                         side_effect=RuntimeError("das Fenster blieb halbfertig")):
