@@ -31,6 +31,7 @@ PERMISSION_HINT = (
 kernel32 = ctypes.WinDLL("kernel32.dll", use_last_error=True)
 hid = ctypes.WinDLL("hid.dll", use_last_error=True)
 setupapi = ctypes.WinDLL("setupapi.dll", use_last_error=True)
+user32 = ctypes.WinDLL("user32.dll", use_last_error=True)
 
 GENERIC_READ = 0x80000000
 GENERIC_WRITE = 0x40000000
@@ -52,6 +53,13 @@ ERROR_DEVICE_NOT_AVAILABLE = 433
 
 DIGCF_PRESENT = 0x00000002
 DIGCF_DEVICEINTERFACE = 0x00000010
+
+# Raw input (user32) is the second, independent way to the very same interface
+# paths: it never touches setupapi but asks the input stack, so the two walks
+# can be compared against each other.
+RIM_TYPEHID = 0x00000002
+RID_ID_DEVICE = 0x00000000
+UINT_FAILURE = 0xFFFFFFFF
 
 # cbSize of SP_DEVICE_INTERFACE_DETAIL_DATA_W is the size the *header*
 # declares, which differs between 32 and 64 bit; getting it wrong is the
@@ -113,6 +121,15 @@ class OVERLAPPED(ctypes.Structure):
     ]
 
 
+class RAWINPUTDEVICELIST(ctypes.Structure):
+    """One entry of the raw input table: a handle and what kind it is."""
+
+    _fields_ = [
+        ("hDevice", wintypes.HANDLE),
+        ("dwType", wintypes.DWORD),
+    ]
+
+
 class Handle:
     """An open device interface, with what was learned about it while opening."""
 
@@ -169,6 +186,11 @@ for _dll, _name, _restype, _argtypes in (
       ctypes.c_void_p]),
     (setupapi, "SetupDiDestroyDeviceInfoList", wintypes.BOOL,
      [wintypes.HANDLE]),
+    (user32, "GetRawInputDeviceList", wintypes.UINT,
+     [ctypes.c_void_p, ctypes.POINTER(wintypes.UINT), wintypes.UINT]),
+    (user32, "GetRawInputDeviceInfoW", wintypes.UINT,
+     [wintypes.HANDLE, wintypes.UINT, ctypes.c_void_p,
+      ctypes.POINTER(wintypes.UINT)]),
 ):
     _func = getattr(_dll, _name)
     _func.restype = _restype
@@ -180,15 +202,23 @@ def _last_error() -> int:
     return ctypes.get_last_error()
 
 
-def _interface_paths() -> list[str]:
-    """Every present HID device interface path, in enumeration order."""
+def _enumerate_interfaces() -> tuple[list[str], dict]:
+    """Every present HID device interface path, plus what the search went through.
+
+    The report is the point of this function. "The pad is not here" and "the
+    search itself was refused" look exactly alike from the outside -- both
+    leave an empty list -- and they want completely different answers.
+    """
+    report = {"klasse": "ok", "gesichtet": 0, "unlesbar": 0, "unlesbar_code": 0,
+              "anfangs_code": 0}
     guid = GUID()
     hid.HidD_GetHidGuid(ctypes.byref(guid))
     info = setupapi.SetupDiGetClassDevsW(
         ctypes.byref(guid), None, None, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE
     )
     if not info or info == INVALID_HANDLE_VALUE:
-        return []
+        report["klasse"] = f"abgelehnt (Windows-Fehler {_last_error()})"
+        return [], report
     paths: list[str] = []
     try:
         index = 0
@@ -198,14 +228,28 @@ def _interface_paths() -> list[str]:
             if not setupapi.SetupDiEnumDeviceInterfaces(
                 info, None, ctypes.byref(guid), index, ctypes.byref(data)
             ):
+                if index == 0:
+                    # Nothing at all, not even a keyboard: that is a driver
+                    # question, not a missing pad, and the code says which.
+                    report["anfangs_code"] = _last_error()
                 break  # ERROR_NO_MORE_ITEMS, or a driver that will not talk
+            report["gesichtet"] += 1
             path = _interface_detail(info, ctypes.byref(data))
             if path:
                 paths.append(path)
+            else:
+                report["unlesbar"] += 1
+                if not report["unlesbar_code"]:
+                    report["unlesbar_code"] = _last_error()
             index += 1
     finally:
         setupapi.SetupDiDestroyDeviceInfoList(info)
-    return paths
+    return paths, report
+
+
+def _interface_paths() -> list[str]:
+    """Every present HID device interface path, in enumeration order."""
+    return _enumerate_interfaces()[0]
 
 
 def _interface_detail(info, interface_data) -> str | None:
@@ -230,13 +274,102 @@ def _interface_detail(info, interface_data) -> str | None:
         return None
 
 
+def _raw_device_name(handle) -> str | None:
+    """The ``\\\\?\\hid#...`` path behind one raw input handle."""
+    needed = wintypes.UINT(0)
+    user32.GetRawInputDeviceInfoW(handle, RID_ID_DEVICE, None, ctypes.byref(needed))
+    if not needed.value:
+        return None
+    buf = ctypes.create_string_buffer(needed.value)
+    got = user32.GetRawInputDeviceInfoW(handle, RID_ID_DEVICE,
+                                        ctypes.cast(buf, ctypes.c_void_p),
+                                        ctypes.byref(needed))
+    if got in (0, UINT_FAILURE):
+        return None
+    taken = min(got, needed.value) or got
+    try:
+        return buf.raw[:taken].decode("utf-16-le", "ignore").split("\x00")[0] or None
+    except UnicodeDecodeError:
+        return None
+
+
+def raw_input_scan() -> tuple[int, int, list[str]]:
+    """(all raw input devices, HID ones, paths of ours) from the input stack.
+
+    Deliberately a different road than ``_enumerate_interfaces``: when one
+    road says "nothing here" and the other says otherwise, that difference is
+    the whole diagnosis. Nothing here can raise -- a machine without a raw
+    input stack should still answer with numbers.
+    """
+    count = wintypes.UINT(0)
+    size = ctypes.sizeof(RAWINPUTDEVICELIST)
+    user32.GetRawInputDeviceList(None, ctypes.byref(count), size)
+    total = count.value
+    if not total:
+        return 0, 0, []
+    table = (RAWINPUTDEVICELIST * total)()
+    if user32.GetRawInputDeviceList(ctypes.cast(table, ctypes.c_void_p),
+                                    ctypes.byref(count), size) == UINT_FAILURE:
+        return total, 0, []
+    hid_devices = 0
+    ours: list[str] = []
+    for entry in table[: count.value]:
+        if entry.dwType != RIM_TYPEHID:
+            continue
+        hid_devices += 1
+        path = _raw_device_name(entry.hDevice)
+        if path and _PATH_ID.search(path.lower()) and path not in ours:
+            ours.append(path)
+    return total, hid_devices, ours
+
+
 def find_paths() -> list[str]:
     """Interface paths of every connected pad."""
     seen: list[str] = []
     for path in _interface_paths():
         if _PATH_ID.search(path.lower()) and path not in seen:
             seen.append(path)
-    return seen
+    if seen:
+        return seen
+    # The setupapi walk is the documented one, but not the only one: the input
+    # stack hands out these very paths too. An empty walk here has meant two
+    # different things in the field -- no pad, and a search that could not
+    # start -- and a second look costs one call and settles both.
+    #
+    # This runs again every few seconds from the control loop, so a second
+    # road that cannot be walked must not be allowed to raise: an empty list
+    # keeps saying "kein Geraet", which is what it means.
+    try:
+        return raw_input_scan()[2]
+    except (OSError, ValueError):
+        return []
+
+
+def scan_report() -> list[str]:
+    """Lines for ``llano selftest``: why a search came back empty.
+
+    One line per question, so the answer survives being photographed.
+    """
+    _, report = _enumerate_interfaces()
+    total, hid_share, ours = raw_input_scan()
+    lines = [
+        f"Klassensuche   : {report['klasse']}; {report['gesichtet']} "
+        f"Schnittstellen gelesen, {report['unlesbar']} ohne verwertbaren Pfad"
+    ]
+    if report["unlesbar_code"]:
+        lines.append(f"                 : letzter Fehler "
+                     f"{report['unlesbar_code']}")
+    if report["anfangs_code"]:
+        lines.append(f"                 : die Aufzaehlung brach schon beim "
+                     f"ersten Geraet ab (Fehler {report['anfangs_code']})")
+    lines.append(
+        f"Roheingabe     : {total} Geraete, davon {hid_share} Eingabegeraete, "
+        f"{len(ours)} mit der Kennung {usb_id()}"
+    )
+    if not total:
+        lines.append("                 : die Roheingabe kennt kein einziges "
+                     "Geraet - hier laeuft die Eingabe nicht ueber Hid-Treiber")
+    return lines
 
 
 def _raw_open(path: str, overlapped: bool = False):

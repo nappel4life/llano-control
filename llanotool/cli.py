@@ -342,6 +342,15 @@ def cmd_selftest(args) -> int:
             if node.get("grund"):
                 print(f"                 : {node['grund']}")
 
+    bericht = getattr(backend, "scan_report", None)
+    if bericht is not None and (not nodes or (zaehlen is not None
+                                              and zaehlen() == 0)):
+        # "0 am Rechner" auf einem Rechner mit Tastatur heisst nicht "kein
+        # Kuehler", sondern "die Suche selbst kam nicht los". Wo sie festfaellt
+        # steht dann hier, statt dass darueber geraten wird.
+        for zeile in bericht():
+            print(f"                 {zeile}")
+
     if any(node["readable"] for node in nodes):
         try:
             with Pad() as pad:

@@ -45,6 +45,18 @@ jobs:
         run: python -m llanotool selftest
         continue-on-error: true          # ohne eingesteckten Kuehler kein Fehler
 
+      - name: Schnittstellensuche gegen Windows gezaehlt
+        # Ein Kuehler haengt hier nicht, aber ein echtes Windows. Die eigene
+        # Aufzaehlung neben die von Windows zu legen beantwortet deshalb mehr
+        # als jede Geratemeldung: sieht unsere Suche nur nichts, oder ist auf
+        # diesem Rechner wirklich nichts zu sehen.
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -c "from llanotool import device; [print(z) for z in device.backend.scan_report()]"
+          "HID-Geraete laut Windows: " + (Get-PnpDevice -Class HIDClass -PresentOnly | Measure-Object).Count
+        continue-on-error: true
+
       - name: Oberflaeche ohne Bildschirm
         if: runner.os == 'Linux'
         run: |
