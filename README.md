@@ -1,5 +1,8 @@
 # llano-control — llano V12 Ultra Notebookkühler unter Linux und Windows
 
+[![Bau der Dateien](https://github.com/nappel4life/llano-control/actions/workflows/pakete.yml/badge.svg)](https://github.com/nappel4life/llano-control/actions/workflows/pakete.yml)
+[![Neueste Dateien](https://img.shields.io/github/v/release/nappel4life/llano-control?label=neueste%20Dateien)](https://github.com/nappel4life/llano-control/releases/latest)
+
 Unter Windows gibt es nur die „MythCool“-Oberfläche. Dieses Programm macht
 dasselbe frei und quelloffen: **Lüftergeschwindigkeit in Abhängigkeit von den
 Temperaturensoren des Notebooks** und **Farben, Effekte, Takt und Helligkeit
