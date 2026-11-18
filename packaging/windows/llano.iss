@@ -93,7 +93,7 @@ var
   Path: String;
 begin
   if CurStep <> ssPostInstall then Exit;
-  if not TaskIsSelected('pathicon') then Exit;
+  if not WizardIsTaskSelected('pathicon') then Exit;
   if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
       'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
       'Path', Path) then Path := '';
