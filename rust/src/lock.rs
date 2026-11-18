@@ -46,7 +46,7 @@ pub fn laufzeit_ordner() -> PathBuf {
 fn laufzeit_ordner_aus(xdg: Option<&str>, lokal: Option<&str>) -> PathBuf {
     #[cfg(windows)]
     {
-        let _ = xdg;  // unter Windows nicht vorgesehen, auch wenn sie gesetzt ist
+        let _ = xdg; // unter Windows nicht vorgesehen, auch wenn sie gesetzt ist
         let basis = lokal
             .filter(|text| !text.is_empty())
             .map(PathBuf::from)
@@ -55,7 +55,7 @@ fn laufzeit_ordner_aus(xdg: Option<&str>, lokal: Option<&str>) -> PathBuf {
     }
     #[cfg(not(windows))]
     {
-        let _ = lokal;  // die Laufzeitzaeit der shell gehoert Linux und FreeBSD
+        let _ = lokal; // die Laufzeit der Shell gibt es nur auf Linux und FreeBSD
         let basis = xdg
             .filter(|text| !text.is_empty())
             .map(PathBuf::from)
@@ -297,7 +297,10 @@ mod tests {
             PathBuf::from("/run/user/1000/llano")
         );
         assert_eq!(laufzeit_ordner_aus(None, None), PathBuf::from("/tmp/llano"));
-        assert_eq!(laufzeit_ordner_aus(Some(""), None), PathBuf::from("/tmp/llano"));
+        assert_eq!(
+            laufzeit_ordner_aus(Some(""), None),
+            PathBuf::from("/tmp/llano")
+        );
     }
 
     #[test]

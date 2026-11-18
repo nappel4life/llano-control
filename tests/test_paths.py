@@ -5,10 +5,12 @@ bemerken einander ausschließlich über zwei Pfade: die Einstellungsdatei und di
 Sperrdatei. Liegen die auseinander, stehen zwei Steuerungen am Geraet, lesen sich
 die Antworten der Statusanfrage weg und halten das Geraet gleichzeitig fest --
 gesehen unter Windows, wo die Rust-Fassung die Sperrdatei nach `/tmp` und damit
-nach `C:\\tmp` legte, die Python-Fassung nach `%LOCALAPPDATA%\\llano`.
+nach `C:\\tmp` legte, die Python-Fassung dagegen nach `%LOCALAPPDATA%\\llano`.
 
-Die Regeln hier sind deshalb absichtlich die der Python-Fassung: `loop.py` ist
-der Ort, an dem sie stehen, und `rust/src/lock.rs` nimmt denselben Wert.
+Die Regeln hier sind absichtlich die der Python-Fassung: `loop.py` ist der Ort,
+an dem sie stehen, und `rust/src/lock.rs` nimmt denselben Wert. Erwartet wird
+stets mit `os.path.join`, damit dieselbe Pruefung auf Linux und auf Windows
+läuft -- die Trennzeichen sind genau der Unterschied, an dem man sonst vorbeilaeuft.
 """
 
 import os
@@ -27,8 +29,8 @@ class Sperrdatei(unittest.TestCase):
         with mock.patch.object(loop, "IS_WINDOWS", True), \
                 mock.patch.dict(os.environ, {"LOCALAPPDATA": vorgabe}, clear=True):
             self.assertEqual(loop.runtime_dir(), os.path.join(vorgabe, "llano"))
-            self.assertTrue(loop.lock_path().endswith(
-                os.path.join("llano", "daemon.lock")))
+            self.assertEqual(
+                loop.lock_path(), os.path.join(vorgabe, "llano", "daemon.lock"))
 
     def test_unter_windows_ohne_localappdata_bleibt_es_beim_llano_ordner(self):
         with mock.patch.object(loop, "IS_WINDOWS", True), \
@@ -39,12 +41,13 @@ class Sperrdatei(unittest.TestCase):
         with mock.patch.object(loop, "IS_WINDOWS", False), \
                 mock.patch.dict(os.environ, {"XDG_RUNTIME_DIR": "/run/user/1000"},
                                 clear=True):
-            self.assertEqual(loop.runtime_dir(), "/run/user/1000/llano")
+            self.assertEqual(loop.runtime_dir(), os.path.join("/run/user/1000", "llano"))
 
     def test_unter_linux_ohne_laufzeit_weichet_auf_tmp_aus(self):
         with mock.patch.object(loop, "IS_WINDOWS", False), \
                 mock.patch.dict(os.environ, {}, clear=True):
-            self.assertEqual(loop.lock_path(), "/tmp/llano/daemon.lock")
+            self.assertEqual(loop.lock_path(),
+                             os.path.join("/tmp", "llano", "daemon.lock"))
 
     def test_eine_Vorgabe_aus_der_umgebung_gewinnt(self):
         with mock.patch.dict(os.environ, {"LLANO_LOCK": "/tmp/andere.lock"},
@@ -67,7 +70,7 @@ class Einstellungsdatei(unittest.TestCase):
                 mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": "/home/x/.config"},
                                 clear=True):
             self.assertEqual(config_mod.config_path(),
-                             "/home/x/.config/llano/config.json")
+                             os.path.join("/home/x/.config", "llano", "config.json"))
 
 
 if __name__ == "__main__":
