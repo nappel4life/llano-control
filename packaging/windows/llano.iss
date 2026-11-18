@@ -1,4 +1,4 @@
-; Installationsprogramm fuer Windows (Inno Setup 6)
+﻿; Installationsprogramm fuer Windows (Inno Setup 6)
 ;
 ;   ISCC.exe /DVersion=1.1.1 packaging\windows\llano.iss
 ;
@@ -58,6 +58,12 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon";  Description: "Verknüpfung auf dem Desktop anlegen"
 Name: "autostart";    Description: "Bei jeder Anmeldung starten - der Kühler hält die Kurve auch ohne Fenster"
 Name: "pathicon";     Description: "llano.exe im Suchpfad anmelden - dann genügt `llano status` in jedem Eingabefenster"; Flags: unchecked
+; Die Prozessortemperatur kann nur ein Programm mit Kernel-Treiber holen. Statt
+; auf ein zweites Programm zu verweisen, liegt es hier einfach mit bei: im
+; eigenen Programmordner, mit eingeschaltetem Web-Server, minimiert im
+; Symbolbereich und ohne Sicherheitsabfrage bei jeder Anmeldung. Wer es nicht
+; will, nimmt den Haken raus - die Kurve laeuft auch ohne, nur eben ohne CPU.
+Name: "cpu";          Description: "CPU-Temperaturen mitinstallieren (Messhilfe LibreHardwareMonitor, {app}\helfer)"
 
 [InstallDelete]
 ; Ein Update ueberschreibt gleichnamige Dateien, aber was die alte Fassung
@@ -69,10 +75,18 @@ Type: filesandordirs; Name: "{app}\_internal"
 Type: files; Name: "{app}\llano-control.exe"
 Type: files; Name: "{app}\llano.exe"
 Type: files; Name: "{app}\llano-rs.exe"
+Type: filesandordirs; Name: "{app}\helfer"
 
 [Files]
 Source: "..\..\dist\llano-control\*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
+; Der Helfer wird auf GitHub neben dem Installer geholt (siehe paketebaue.yml)
+; und ist hier schon ausgepackt. `skipifsourcedoesntexist` laesst einen Bau von
+; Hand trotzdem durchlaufen: ohne Ordner gibt es bloess nichts mitzukopieren.
+Source: "..\..\paket\helfer\*"; DestDir: "{app}\helfer"; Tasks: cpu; \
+    Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+Source: "helfer.config"; DestDir: "{app}\helfer"; DestName: "LibreHardwareMonitor.config"; \
+    Tasks: cpu; Flags: ignoreversion skipifsourcedoesntexist
 
 [Icons]
 Name: "{group}\{#MyAppName}";              Filename: "{app}\{#MyAppExeName}"; \
@@ -130,8 +144,25 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   Path: String;
+  Code: Integer;
 begin
   if CurStep <> ssPostInstall then Exit;
+
+  // Die Messhilfe braucht erhohte Rechte, um die Fuehler im Prozessor lesen zu
+  // duerfen. Aus dem Eingabefenster heraus wuerde das bei jeder Anmeldung nach-
+  // fragen; eine Anmeldungsaufgabe mit hoechsten Rechten fragt einmal - beim
+  // Anlegen - und danach nie wieder.
+  if WizardIsTaskSelected('cpu') then
+  begin
+    if not Exec(ExpandConstant('{sys}schtasks.exe'),
+        '/Create /F /TN "llano Messhilfe" /SC ONLOGON /RL HIGHEST /TR """'
+        + ExpandConstant('{app}\helfer\LibreHardwareMonitor.exe') + '"""',
+        '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
+      Log('Messhilfe konnte nicht als Anmeldungsaufgabe angemeldet werden ('
+          + IntToStr(Code) + ')');
+    Log('Messhilfe als Anmeldungsaufgabe angemeldet');
+  end;
+
   if not WizardIsTaskSelected('pathicon') then Exit;
   if not RegQueryStringValue(HKEY_LOCAL_MACHINE,
       'SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
@@ -150,7 +181,20 @@ procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   Path: String;
   App: String;
+  Code: Integer;
 begin
+  if CurUninstallStep = usUninstall then
+  begin
+    // Vor dem Loeschen: die Anmeldungsaufgabe abmelden und einen laufenden
+    // Helfer schliessen. Sonst stehen die Dateien der Messhilfe noch im
+    // Programmordner, und der Deinstaller meldet einen halbfertigen Stand.
+    Exec(ExpandConstant('{sys}taskkill.exe'),
+         '/F /IM LibreHardwareMonitor.exe', '', SW_HIDE,
+         ewWaitUntilTerminated, Code);
+    Exec(ExpandConstant('{sys}schtasks.exe'),
+         '/Delete /F /TN "llano Messhilfe"', '', SW_HIDE,
+         ewWaitUntilTerminated, Code);
+  end;
   if CurUninstallStep <> usPostUninstall then Exit;
   if EinstellungenWeg then
   begin

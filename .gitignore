@@ -36,3 +36,4 @@ probe*.png
 
 # Rust-Bauzeug
 /rust/target/
+/paket/          # die beigelegte Messhilfe, von der Bauautomatik geholt

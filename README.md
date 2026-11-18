@@ -147,7 +147,39 @@ die Messhilfe als Administrator läuft** – bei HWiNFO ist für ein normales
 Programm dann nichts mehr zu lesen. Ist der Port ein anderer, hilft die
 Umgebungsvariable `LLANO_LHM=http://127.0.0.1:8085/data.json`.
 
-Drei Dinge, die dabei auffallen können und absichtlich gemeldet werden:
+**Der dritte Weg – der Haken im Installer.** „CPU-Temperaturen mitinstallieren“
+(standardmäßig angehakt) legt LibreHardwareMonitor nach `llano-control\helfer`,
+dazu die vorgefertigten Einstellungen aus `packaging/windows/helfer.config`:
+Web-Server auf 8085 an, minimiert im Symbolbereich, kein Fenster nach der
+Anmeldung – und eine Anmeldungsaufgabe mit höchsten Rechten, damit nicht bei
+jedem Anmelden eine Sicherheitsabfrage kommt. Danach ist nichts mehr
+anzuklicken. Deinstallieren räumt in dieser Reihenfolge: Aufgabe abmelden,
+laufenden Helfer schließen, Ordner mit der Anwendung löschen.
+
+Zwei Dinge gehören zu diesem Weg und stehen deshalb hier:
+
+* **Es bleibt ein fremdes Programm**, und zwar sichtbar im Symbolbereich. Es
+  steht unter der Mozilla Public License 2.0; `LICENSE` und
+  `THIRD-PARTY-NOTICES.txt` liegen im Helferordner, die Quellen beim
+  [Projekt](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor). Wer
+  das nicht auf der Platte will, nimmt den Haken raus und geht Weg 1 oder 2.
+* **Warum nicht die DLL aus der Hersteller-Software?** Die bringt fast immer
+  WinRing0 mit, einen Ring-0-Treiberlader, den [Microsoft als angreifbar
+  meldet](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/microsoft-defender-antivirus-alert-vulnerabledriver-winnt-winring0)
+  und dessen [Liste blockierter Treiber](https://learn.microsoft.com/en-us/windows/security/operating-system-security/driver-security/malicious-and-vulnerable-driver-blocklists)
+  auf aktuellem Windows standardmäßig scharf ist — ein Installer mit dieser DLL
+  wäre bei jeder Installation ein Alarm und auf Rechnern mit Speicherintegrität
+  einfach taub. Ein eigener Treiber müsste von Microsoft signiert sein. Die
+  aktuelle Messhilfe bringt einen signierten, speicherintegritätsfähigen Treiber
+  mit — deshalb funktioniert sie überhaupt noch.
+
+Die *Bibliothek* desselben Programms (`LibreHardwareMonitorLib`) wäre der
+eigentlich sauberste Weg: kein zweites Programm, Werte direkt im eigenen. Sie ist
+eine .NET-Bibliothek, und ihr Laden aus Python — Laufzeit, Verpacken,
+Treiberzugriff — ist ein eigenes Stück Arbeit. Der Haken ist die Vorstufe, bei
+der sich die Quelle später austauschen lässt.
+
+Fünf Dinge, die dabei auffallen können und absichtlich gemeldet werden:
 
 * **HWiNFO läuft als Administrator** – dann kann ein normales Programm den
   Block nicht lesen, und auch dieses Programm müsste erhöht starten.
@@ -256,7 +288,7 @@ sie beim Start tut, schreibt sie deshalb in den Einstellungsordner:
 In der Datei steht jeder Schritt des Starts, beginnend mit der Fassung:
 
 ```
-19:20:38 INFO   Oberflaeche startet (Fassung 1.1.11).
+19:20:38 INFO   Oberflaeche startet (Fassung 1.2.0).
 19:20:38 DEBUG  Die Oberflaechenbibliothek ist da; die Anwendung wird gebaut.
 19:20:38 INFO   gekoppelt an \\?\hid#vid_374a&pid_b101#7&2985dc16&0&0000#…
 19:20:38 DEBUG  Das Fenster ist gebaut und wird gezeigt (normal).
@@ -484,7 +516,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.1.11 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.2.0 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.

@@ -532,6 +532,8 @@ def main() -> int:
     pump(0.2)
     expect("die Oberflaeche erklaert fehlende Temperaturen",
            not window.sensor_note.isHidden() and "Messhilfe" in window.sensor_note.text())
+    expect("und der Satz ist ein Weg zur Messhilfe",
+           'href="https://github.com/LibreHardwareMonitor' in window.sensor_note.text())
     window.controller.sensors.note = lambda: None
     window._zeige_sensorgrund()
     expect("und schweigt, wenn nichts fehlt", window.sensor_note.isHidden())

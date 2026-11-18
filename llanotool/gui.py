@@ -27,7 +27,7 @@ from PyQt6.QtGui import (
 from PyQt6.QtWidgets import (
     QAbstractItemView, QAbstractSpinBox, QApplication, QCheckBox, QComboBox,
     QDoubleSpinBox, QFormLayout, QGridLayout, QGroupBox, QHBoxLayout, QHeaderView,
-    QLabel, QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy,    QSpinBox, QSystemTrayIcon, QTableWidget, QTableWidgetItem, QToolButton,
+    QLabel, QMainWindow, QMenu, QMessageBox, QPushButton, QSizePolicy, QSpinBox, QSystemTrayIcon, QTableWidget, QTableWidgetItem, QToolButton,
     QVBoxLayout, QWidget,
 )
 
@@ -1004,6 +1004,10 @@ class MainWindow(QMainWindow):
         # in der Kommandozeile - und die liest niemand, der nur klickt.
         self.sensor_note = _muted("")
         self.sensor_note.setWordWrap(True)
+        # Der Satz nennt ein Programm, das noch fehlt - also soll der Satz auch
+        # dafuer zu haben sein, statt dass jemand den Namen abschreibt.
+        self.sensor_note.setTextFormat(Qt.TextFormat.RichText)
+        self.sensor_note.setOpenExternalLinks(True)
         self.sensor_note.setVisible(False)
         layout.addWidget(self.sensor_note)
         layout.addStretch(1)
@@ -1201,6 +1205,9 @@ class MainWindow(QMainWindow):
             grund = self.controller.sensors.note() or ""
         except Exception:                                     # noqa: BLE001
             grund = ""            # die Anzeige darf an einer Auskunft nicht sterben
+        if "Messhilfe" in grund:
+            grund += (' <a href="https://github.com/LibreHardwareMonitor/'
+                      'LibreHardwareMonitor/releases">Messhilfe holen</a>')
         if self.sensor_note.text() == grund:
             return
         self.sensor_note.setText(grund)

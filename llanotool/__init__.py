@@ -1,4 +1,4 @@
 """llano - Steuerung des llano V12 Ultra Notebookkuehlers unter Linux."""
 
-__version__ = "1.1.11"
+__version__ = "1.2.0"
 __all__ = ["protocol", "device", "sensors", "curve", "config", "loop"]

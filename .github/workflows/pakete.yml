@@ -188,6 +188,48 @@ jobs:
             choco install innosetup --no-progress -y
           }
 
+      - name: Messhilfe fuer CPU-Temperaturen dazulegen
+        # Der Haken "CPU-Temperaturen mitinstallieren" im Installer legt diese
+        # Messhilfe in den eigenen Programmordner, damit die Prozessortemperatur
+        # ohne zweiten Download da ist. Windows gibt sie nur an ein Programm mit
+        # Kernel-Treiber heraus, und die aktuelle Fassung bringt dafuer einen
+        # signierten Treiber mit. Der ubliche Kunstgriff - eine DLL mit Ring-0-
+        # Zugriff dazulegen - ware heute der blockierte WinRing0-Treiber: Defender
+        # meldet ihn als angreifbar, und die Speicherintegritaet laedt ihn nicht.
+        # Die kleinere der beiden Fassungen laeuft auf der .NET-Fassung, die
+        # Windows 10 und 11 selbst mitbringen.
+        shell: pwsh
+        run: |
+          $Fassung = "v0.9.6"
+          $Ziel = "paket\helfer"
+          $Datum = "$env:RUNNER_TEMP\mesdhilfe.zip"
+          $Grund = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor"
+          Invoke-WebRequest "$Grund/releases/download/$Fassung/LibreHardwareMonitor.zip" -OutFile $Datum
+          "Gepruefte Datei: " + (Get-FileHash $Datum -Algorithm SHA256).Hash
+          Remove-Item -Recurse -Force $Ziel -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $Ziel | Out-Null
+          $Ausgepackt = "$env:RUNNER_TEMP\mesdhilfe"
+          Expand-Archive $Datum -DestinationPath $Ausgepackt
+          # Die Zipdatei legt die Dateien mal direkt, mal in einem Ordner ab.
+          # Beides kommt hier auf eine Ebene, damit {app}\helfer keine
+          # verschachtelte Mappe bekommt.
+          $Kinder = @(Get-ChildItem $Ausgepackt)
+          $Quelle = if ($Kinder.Count -eq 1 -and $Kinder[0].PSIsContainer) {
+            $Kinder[0].FullName
+          } else { $Ausgepackt }
+          Copy-Item -Path "$Quelle\*" -Destination $Ziel -Recurse -Force
+          # Die Lizenz gehoert mit, weil die Messhilfe unter einer Lizenz steht,
+          # die das verlangt - und weil jemand, der den Ordner oeffnet, sehen
+          # soll, was hier fremd ist und woher es stammt.
+          foreach ($Stueck in "LICENSE", "THIRD-PARTY-NOTICES.txt") {
+            Invoke-WebRequest "https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/$Fassung/$Stueck" -OutFile "$Ziel\$Stueck"
+          }
+          if (-not (Test-Path "$Ziel\LibreHardwareMonitor.exe")) {
+            "Die Messhilfe fehlt - der Haken bliebe leer."; exit 1
+          }
+          "Messhilfe: " + ((Get-ChildItem $Ziel | Measure-Object).Count) + " Dateien, " +
+            [math]::Round(((Get-ChildItem $Ziel -Recurse | Measure-Object Length -Sum).Sum / 1MB), 1) + " MB"
+
       - name: Programmdateien bauen
         run: pyinstaller --noconfirm --clean packaging/llano.spec
 
@@ -280,6 +322,41 @@ jobs:
             "Die installierte Oberflaeche hat keine Einstellungsdatei hinterlassen."
           }
           "Die installierte Oberflaeche lief nach 40 Sekunden - gut."
+
+          # Der Helfer-Haken ist standardmaessig an, also muss die Messhilfe im
+          # Programmordner liegen. Ob sie aus den dabeigelegten Einstellungen
+          # heraus wirklich antwortet, wird danach gefragt - nicht angeklickt.
+          $hilfe = "$programme\helfer\LibreHardwareMonitor.exe"
+          if (-not (Test-Path $hilfe)) {
+            "Der Haken war an, aber die Messhilfe wurde nicht installiert."
+            Get-ChildItem $programme | Select-Object -ExpandProperty Name
+            exit 1
+          }
+          "Messhilfe installiert: " + ((Get-ChildItem "$programme\helfer" |
+              Measure-Object).Count) + " Dateien"
+          Start-Process $hilfe | Out-Null
+          $antwort = $null
+          for ($versuch = 1; $versuch -le 30; $versuch++) {
+            Start-Sleep -Seconds 1
+            try {
+              $antwort = Invoke-RestMethod "http://127.0.0.1:8085/data.json" -TimeoutSec 3
+              break
+            } catch { }
+          }
+          if ($null -eq $antwort) {
+            # Der Bauwagen hat weder Prozessor noch Mainboard-Sensoren, und sein
+            # Treiber darf dort womoeglich nicht laden. Eine fehlende Antwort ist
+            # hier also eine Warnung, kein Grund, nichts herauszugeben - dass die
+            # Dateien und ihre Einstellungen da sind, steht oben schon fest.
+            "ACHTUNG: die Messhilfe antwortete in 30 Sekunden nicht auf Port 8085."
+            Get-Content "$programme\helfer\LibreHardwareMonitor.config" -ErrorAction SilentlyContinue
+          } else {
+            "Messhilfe antwortet: Knoten " + $antwort.Text + " mit " +
+              @($antwort.Children).Count + " Unterknoten"
+            & "$programme\llano.exe" sensors
+            $global:LASTEXITCODE = 0
+          }
+          & "$env:SystemRoot\System32\taskkill.exe" /F /IM LibreHardwareMonitor.exe 2>$null | Out-Null
 
       - name: Dateien fuers Verzeichnis
         uses: actions/upload-artifact@v4
