@@ -35,8 +35,7 @@ Messtreue am Gerät in einer Datendatei, und beide Fassungen müssen daran vorbe
 | --- | --- |
 | Protokoll, lesen und schreiben | fertig, gegen die Byte-Folien geprüft |
 | Gerätezugriff Linux | fertig, am Gerät probiert |
-| Temperaturen (hwmon) | fertig, gleiche Schlüssel wie die Python-Fassung |
-| NVIDIA über `nvidia-smi` | fehlt; auf Notebooks mit Optimus fehlt sonst die Grafikkarte |
+| Temperaturen (hwmon und `nvidia-smi`) | fertig, dieselben sieben Schlüssel wie die Python-Fassung |
 | Kurve, Hintergrunddienst, Konfiguration | fehlt |
 | Windows | fehlt; die Python-Fassung hat den Zugriff schon, `llanotool/device_windows.py` zeigt, welche Aufrufe nötig sind |
 | Oberfläche | bleibt zuerst in Qt; eine Rust-Oberfläche ist ein eigenes Projekt |

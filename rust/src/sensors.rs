@@ -5,8 +5,9 @@
 //! `nouveau`. Das kostet ein paar Dateilesevorgaenge und keine Abhaengigkeit.
 //!
 //! Eine NVIDIA-Karte fehlt dort oft, weil Optimus-Notebooks sie ueber hwmon
-//! gar nicht anzeigen; die Python-Fassung holt sie mit `nvidia-smi` nach. Das
-//! steht in dieser Fassung noch aus - die Selbstpruefung sagt es deshalb dazu.
+//! gar nicht anzeigen; sie kommt deshalb von `nvidia-smi` dazu
+//! ([`nvidia_karte`]). Fehlt das Programm oder antwortet es nicht, fehlt nur
+//! diese eine Messstelle - die anderen bleiben.
 //!
 //! Die Schlüssel sind dieselben wie in der Python-Fassung (`Chip:Messstelle`),
 //! damit eine gespeicherte Kurve beide Fassungen uebersteht.
@@ -154,10 +155,42 @@ pub fn kerne_zusammenfassen(werte: &BTreeMap<String, f64>) -> BTreeMap<String, f
         .collect()
 }
 
+/// Die Grafikkarte von NVIDIA, wie die Python-Fassung sie holt.
+///
+/// Ein eigener Aufruf pro Abfrage, keine Zwischenspeicherung: Die
+/// Python-Fassung sits in einem Dienst und merkt sich den Wert eine Sekunde,
+/// diese Fassung wird bisher nur einzeln aufgerufen. `nvidia-smi` haengt
+/// selten, aber wenn, dann wartet dieses Programm - fuer die Kommandozeile
+/// haelt das die Rueckgabe fuer brauchbarer als ein Zeitlimit, das den Wert
+/// verschluckt.
+pub fn nvidia_karte() -> Option<f64> {
+    let antwort = std::process::Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=temperature.gpu",
+            "--format=csv,noheader,nounits",
+        ])
+        .output()
+        .ok()?;
+    if !antwort.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&antwort.stdout);
+    let erste = text.lines().next()?.trim();
+    erste.parse::<f64>().ok().filter(|grad| *grad > 0.0)
+}
+
+/// Die Messstelle, unter der die Python-Fassung diesen Wert in der Kurve
+/// anzeigt.
+pub const NVIDIA_SCHLUESSEL: &str = "nvidia:GPU";
+
 /// Alles, was dieser Rechner an Temperaturen weis, in der Reihenfolge, die die
 /// Oberflaeche zeigt.
 pub fn lesen() -> BTreeMap<String, f64> {
-    kerne_zusammenfassen(&hwmon_lesen())
+    let mut werte = kerne_zusammenfassen(&hwmon_lesen());
+    if let Some(grad) = nvidia_karte() {
+        werte.insert(NVIDIA_SCHLUESSEL.to_owned(), grad);
+    }
+    werte
 }
 
 #[cfg(test)]
@@ -198,6 +231,14 @@ mod tests {
         assert!(!nachher.contains_key("coretemp:Core 0"));
         // Ein Chip ohne Gesamtwert behaelt, was er hat.
         assert!(nachher.contains_key("acpitz:1"));
+    }
+
+    #[test]
+    fn die_grafikkarte_oder_gar_nichts() {
+        // Auf Rechnern ohne NVIDIA fehlt die Messstelle, statt zu fehlschlagen.
+        if let Some(grad) = nvidia_karte() {
+            assert!((1.0..200.0).contains(&grad), "unglaubwuerdige {grad} Grad");
+        }
     }
 
     #[test]
