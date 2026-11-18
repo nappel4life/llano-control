@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import logging
+import os
 import signal
 import sys
 import time
+import traceback
 
 from . import config as config_mod
 from . import protocol
@@ -247,6 +250,29 @@ def cmd_daemon(args) -> int:
     return 0
 
 
+def absturzbericht(ausnahme: BaseException) -> str:
+    """Schreibt auf, woran die Oberflaeche gestorben ist, und nennt den Ort.
+
+    Die fertige Programmdatei hat kein eigenes Fenster fuer eine Fehlerausgabe,
+    und der Windows-Hinweis dazu nennt nur, dass sie beendet sei. Ohne diese
+    Datei ist "startet nicht" alles, was jemand sehen kann - und ein Blick in
+    die Datei weiss, welche Zeile es war.
+    """
+    ordner = os.path.dirname(config_mod.config_path())
+    ort = os.path.join(ordner, "oberflaeche-fehler.txt")
+    try:
+        # Der Ordner existiert oft noch nicht - der Fehler kann schliesslich
+        # vor jedem Schreibversuch passiert sein.
+        os.makedirs(ordner, exist_ok=True)
+        with open(ort, "a", encoding="utf-8") as datei:
+            datei.write(f"\n===== {datetime.datetime.now():%Y-%m-%d %H:%M:%S}"
+                        f" {sys.platform} =====\n")
+            traceback.print_exception(ausnahme, file=datei)
+    except OSError:
+        return ""
+    return ort
+
+
 def cmd_gui(args) -> int:
     try:
         from .gui import run
@@ -262,7 +288,16 @@ def cmd_gui(args) -> int:
         format="%(asctime)s %(levelname)-7s %(message)s",
         datefmt="%H:%M:%S",
     )
-    return run(start_minimized=args.minimized, tray_only=args.tray)
+    try:
+        return run(start_minimized=args.minimized, tray_only=args.tray)
+    except Exception as exc:                          # noqa: BLE001 - der letzte Zeuge
+        ort = absturzbericht(exc)
+        raise SystemExit(
+            f"Die Oberflaeche ist beim Starten haengen geblieben: {exc}\n"
+            + (f"Naeheres steht in: {ort}" if ort
+               else "Sie war auch nicht aufzuschreiben - meldet einfach, dass der"
+                    " Start fehlte und was davor auf dem Bildschirm stand.")
+        ) from exc
 
 
 def cmd_rules(args) -> int:
