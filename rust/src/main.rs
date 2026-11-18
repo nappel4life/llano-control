@@ -10,6 +10,9 @@ use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
+use llano_core::config::{self, Einstellungen};
+use llano_core::controller::Steuerung;
+use llano_core::curve;
 use llano_core::device::{self, Pad};
 use llano_core::protocol::{self, Lighting};
 use llano_core::sensors;
@@ -27,12 +30,412 @@ llano-rs - llano V12 Ultra Notebookkuehler (Rust-Fassung)
                                   Farbe, Effekt, Takt (0-3) und Helligkeit (0-255)
                                   --an / --off fuer die LEDs
 
+  llano-rs power an                 Kuehler an oder aus
+  llano-rs curve 52 68              was die Kurve fuer diese Temperaturen sagt
+  llano-rs rules                    was der Dienst tun wuerde, und warum
+  llano-rs daemon [--einmal]        die Kurve von selbst nachsehen lassen
+  llano-rs config [schluessel] [--setzen key=wert ...]
+
   llano-rs version                Fassung dieser Datei
 
 Schreiben bekommt die Sperrdatei der laufenden Oberflaeche: Wer `llano gui`
 laufen laesst, steuert besser ueber sie. Kurve, Dienst und Windows fehlen in
 dieser Fassung noch - die Python-Fassung kann sie.
 ";
+
+/// Der Hauptschalter des Kuehlers.
+fn strom_setzen(wort: &str, knoten: Option<&PathBuf>) -> ExitCode {
+    let an = match wort.trim().to_lowercase().as_str() {
+        "an" | "ein" | "on" | "1" | "true" => true,
+        "aus" | "off" | "0" | "false" => false,
+        _ => {
+            println!("`{wort}` ist weder an noch aus. Gemeint ist: llano-rs power an");
+            return ExitCode::from(2);
+        }
+    };
+    let mut steuerung = steuerungsbereit(knoten);
+    if steuerung.strom(an, false) {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(1)
+    }
+}
+
+/// Eine Steuerung mit den Einstellungen aus der Datei.
+fn steuerungsbereit(knoten: Option<&PathBuf>) -> Steuerung {
+    let (einstellungen, warnung) = config::laden();
+    if let Some(meldung) = warnung {
+        println!("{meldung}");
+    }
+    let mut steuerung = Steuerung::neu(einstellungen);
+    steuerung.knoten_wunsch = knoten.cloned();
+    steuerung
+}
+
+/// Die Kurve, und auf Wunsch die Stufe zu ein paar Temperaturen.
+fn kurve_zeigen(argumente: &[String]) -> ExitCode {
+    let (einstellungen, warnung) = config::laden();
+    if let Some(meldung) = warnung {
+        println!("{meldung}");
+    }
+    println!(
+        "Kurve aus der Einstellungsdatei, Hysterese {} Grad:",
+        einstellungen.hysterese
+    );
+    for (grad, stufe) in &einstellungen.kurve {
+        println!("  {grad:>5.1} degC -> {stufe:>3} %");
+    }
+    let grade: Vec<f64> = argumente
+        .iter()
+        .filter_map(|wort| wort.replace(',', ".").parse::<f64>().ok())
+        .collect();
+    if grade.is_empty() {
+        println!("\nTemperaturen dazu ergeben die Stufe: llano-rs curve 52 68");
+        return ExitCode::SUCCESS;
+    }
+    println!();
+    for grad in grade {
+        let stufe = curve::interpolieren(&einstellungen.kurve, grad).unwrap_or(1);
+        println!("  {grad:>5.1} degC -> {stufe:>3} %");
+    }
+    ExitCode::SUCCESS
+}
+
+/// Was der Kuehler als Dienst tun wuerde, und warum.
+fn regeln_zeigen() -> ExitCode {
+    let (einstellungen, warnung) = config::laden();
+    if let Some(meldung) = warnung {
+        println!("{meldung}");
+    }
+    println!("Einstellungsdatei: {}", config::datei().display());
+    if einstellungen.modus == "auto" {
+        println!("Modus        : Kurve");
+        println!(
+            "Messstellen  : {}",
+            if einstellungen.messstellen.is_empty() {
+                "keine eingestellt, die waermste Messung zaehlt".to_owned()
+            } else {
+                einstellungen.messstellen.join(", ")
+            }
+        );
+        println!("Hysterese    : {} Grad", einstellungen.hysterese);
+        println!(
+            "Kurve        : {}",
+            einstellungen
+                .kurve
+                .iter()
+                .map(|(grad, stufe)| format!("{grad:.0}={stufe}"))
+                .collect::<Vec<String>>()
+                .join("  ")
+        );
+    } else {
+        println!(
+            "Modus        : manuell, Stufe {}",
+            einstellungen.manuelle_stufe
+        );
+    }
+    println!(
+        "Schreiben    : fruehestens alle {:.1} s und ab {:.0} % Unterschied",
+        einstellungen.schreib_abstand, einstellungen.stufe_mindest_schritt
+    );
+    println!(
+        "Licht        : {}, Farbe {}, Effekt {}, Takt {}, Helligkeit {}",
+        if einstellungen.licht.an { "an" } else { "aus" },
+        einstellungen.licht.farbe,
+        einstellungen.licht.effekt,
+        einstellungen.licht.takt,
+        einstellungen.licht.helligkeit
+    );
+    println!(
+        "Schalten     : beim Start an, beim Ende {}",
+        if einstellungen.beim_ende_aus {
+            "aus"
+        } else {
+            "an"
+        }
+    );
+    println!("Nachlesen    : alle {:.1} s", einstellungen.poll_sekunden);
+    ExitCode::SUCCESS
+}
+
+/// Die Datei zeigen, und mit `--set` auch aendern.
+fn einstellungen(argumente: &[String]) -> ExitCode {
+    let pfad = config::datei();
+    let roh = config::roh_pfad(&pfad);
+    let (mut settings, warnung) = config::laden();
+    if let Some(meldung) = warnung {
+        println!("{meldung}");
+    }
+
+    let nur_ein_feld = argumente
+        .first()
+        .filter(|wort| !wort.starts_with('-'))
+        .map(String::as_str);
+
+    let setzungen: Vec<&String> = argumente
+        .iter()
+        .skip_while(|wort| *wort != "--set" && *wort != "--setzen")
+        .skip(1)
+        .collect();
+
+    if !setzungen.is_empty() {
+        for paar in setzungen {
+            if let Some(meldung) = anwenden(paar, &mut settings) {
+                println!("{meldung}");
+                return ExitCode::from(2);
+            }
+        }
+        match config::speichern(&settings, roh.as_ref()) {
+            Ok(pfad) => println!("Gespeichert: {}", pfad.display()),
+            Err(fehler) => {
+                println!("Speichern: {fehler}");
+                return ExitCode::from(1);
+            }
+        }
+    }
+
+    let text = serde_json::to_string_pretty(&einstellungen_json(&settings))
+        .unwrap_or_else(|_| "{}".to_owned());
+    match nur_ein_feld {
+        Some(feld) => {
+            let wert = einstellungen_json(&settings).get(feld).cloned();
+            match wert {
+                Some(wert) => println!(
+                    "{}",
+                    serde_json::to_string_pretty(&wert).unwrap_or_else(|_| "null".to_owned())
+                ),
+                None => {
+                    println!("Diesen Schluessel kennt die Datei nicht: {feld}");
+                    return ExitCode::from(2);
+                }
+            }
+        }
+        None => println!("{text}"),
+    }
+    ExitCode::SUCCESS
+}
+
+/// Ein `schluessel=wert` aus `config --set`.
+fn anwenden(paar: &str, settings: &mut Einstellungen) -> Option<String> {
+    let (schluessel, wert) = paar.split_once('=')?;
+    let text = wert.trim();
+    let zahl = |was: &str| {
+        text.replace(',', ".").parse::<f64>().ok().map_or_else(
+            || format!("{was} braucht eine Zahl, nicht `{text}`"),
+            |_| String::new(),
+        )
+    };
+    match schluessel.trim() {
+        "mode" | "modus" => settings.modus = text.to_owned(),
+        "manual_speed" => {
+            let fehler = zahl("Die manuelle Stufe");
+            if !fehler.is_empty() {
+                return Some(fehler);
+            }
+            settings.manuelle_stufe = text.replace(',', ".").parse().unwrap_or(60.0);
+        }
+        "hysterese" | "hysteresis" => {
+            let fehler = zahl("Die Hysterese");
+            if !fehler.is_empty() {
+                return Some(fehler);
+            }
+            settings.hysterese = text.replace(',', ".").parse().unwrap_or(3.0);
+        }
+        "poll_seconds" => {
+            let fehler = zahl("Die Pause");
+            if !fehler.is_empty() {
+                return Some(fehler);
+            }
+            settings.poll_sekunden = text.replace(',', ".").parse().unwrap_or(3.0);
+        }
+        "write_interval" => {
+            let fehler = zahl("Der Schreibabstand");
+            if !fehler.is_empty() {
+                return Some(fehler);
+            }
+            settings.schreib_abstand = text.replace(',', ".").parse().unwrap_or(5.0);
+        }
+        "min_speed_step" => {
+            let fehler = zahl("Der Mindestschritt");
+            if !fehler.is_empty() {
+                return Some(fehler);
+            }
+            settings.stufe_mindest_schritt = text.replace(',', ".").parse().unwrap_or(2.0);
+        }
+        "sensors" => {
+            settings.messstellen = text
+                .split(',')
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_owned)
+                .collect()
+        }
+        "power_on_start" => settings.beim_start_an = entscheid(text),
+        "power_off_on_exit" => settings.beim_ende_aus = entscheid(text),
+        "light.color" => settings.licht.farbe = begrenzt(text, 4)?,
+        "light.effect" => settings.licht.effekt = begrenzt(text, 4)?,
+        "light.speed" => settings.licht.takt = begrenzt(text, 3)?,
+        "light.brightness" => settings.licht.helligkeit = begrenzt(text, 255)?,
+        "light.on" => settings.licht.an = entscheid(text),
+        "curve" => {
+            let punkte = kurve_aus_text(text);
+            if punkte.is_empty() {
+                return Some(
+                    "Eine Kurve ist `40=10,60=40,80=90` - Grad gleich Prozent, durch Komma."
+                        .to_owned(),
+                );
+            }
+            settings.kurve = punkte;
+        }
+        anderes => return Some(format!("Diesen Schluessel kenne ich nicht: {anderes}")),
+    }
+    None
+}
+
+/// Ja oder nein, so wie die Kommandozeile es annimmt.
+fn entscheid(text: &str) -> bool {
+    !matches!(
+        text.trim().to_lowercase().as_str(),
+        "0" | "aus" | "off" | "nein" | "false" | "no"
+    )
+}
+
+/// Eine kleine Ganze Zahl mit Grenze.
+fn begrenzt(text: &str, grenze: u8) -> Option<u8> {
+    text.trim()
+        .parse::<u8>()
+        .ok()
+        .map(|wert| wert.min(grenze))
+        .or_else(|| protocol::color_value(text).or_else(|| protocol::effect_value(text)))
+}
+
+/// `40=10,60=40` als Kurve.
+fn kurve_aus_text(text: &str) -> Vec<config::Punkt> {
+    text.split(',')
+        .filter_map(|punkt| {
+            let (grad, stufe) = punkt.split_once('=')?;
+            let grad = grad.trim().replace(',', ".").parse::<f64>().ok()?;
+            let stufe = stufe.trim().parse::<i64>().ok()?.clamp(1, 100) as u8;
+            Some((grad, stufe))
+        })
+        .collect()
+}
+
+/// Die Einstellungen als JSON, so wie `llano config` es ausgiebt.
+fn einstellungen_json(settings: &Einstellungen) -> serde_json::Value {
+    let mut licht = serde_json::Map::new();
+    licht.insert("on".to_owned(), serde_json::json!(settings.licht.an));
+    licht.insert("color".to_owned(), serde_json::json!(settings.licht.farbe));
+    licht.insert(
+        "effect".to_owned(),
+        serde_json::json!(settings.licht.effekt),
+    );
+    licht.insert("speed".to_owned(), serde_json::json!(settings.licht.takt));
+    licht.insert(
+        "brightness".to_owned(),
+        serde_json::json!(settings.licht.helligkeit),
+    );
+    serde_json::json!({
+        "mode": settings.modus,
+        "manual_speed": settings.manuelle_stufe,
+        "sensors": settings.messstellen,
+        "curve": settings.kurve.iter().map(|(grad, stufe)| serde_json::json!([grad, stufe])).collect::<Vec<_>>(),
+        "hysteresis": settings.hysterese,
+        "poll_seconds": settings.poll_sekunden,
+        "write_interval": settings.schreib_abstand,
+        "min_speed_step": settings.stufe_mindest_schritt,
+        "light": licht,
+        "power_on_start": settings.beim_start_an,
+        "power_off_on_exit": settings.beim_ende_aus,
+    })
+}
+
+/// Der Hintergrunddienst: eine Kurve, die von selbst nachsieht.
+fn dienst(knoten: Option<&PathBuf>, argumente: &[String]) -> ExitCode {
+    let einmal = argumente
+        .iter()
+        .any(|wort| wort == "--einmal" || wort == "--once");
+    let sperre = match llano_core::lock::erwerben() {
+        Ok(sperre) => sperre,
+        Err(belegt) => {
+            println!("{belegt}");
+            return ExitCode::from(3);
+        }
+    };
+    let mut steuerung = steuerungsbereit(knoten);
+    if einstellungswarnung(&steuerung) {
+        return ExitCode::from(1);
+    }
+
+    if einmal {
+        let umlauf = steuerung.umlauf();
+        meldung_umlauf(&umlauf);
+        return if umlauf.verbunden {
+            ExitCode::SUCCESS
+        } else {
+            ExitCode::from(1)
+        };
+    }
+
+    llano_core::signale::hoeren();
+    println!(
+        "llano-rs {VERSION} als Dienst; Kurve aus {}, Ende mit Strg+C",
+        config::datei().display()
+    );
+    // Eine Zeile pro Umlauf waeren 17 000 Zeilen am Tag. Gezeigt wird also nur,
+    // was sich anders darstellt als in der letzten Runde.
+    let zuletzt = std::cell::RefCell::new((false, None::<u8>, false));
+    steuerung.laufen(&sperre, &weiter_sollen, &|umlauf| {
+        let stand = (umlauf.verbunden, umlauf.ziel, umlauf.bericht.is_some());
+        if *zuletzt.borrow() != stand {
+            *zuletzt.borrow_mut() = stand;
+            meldung_umlauf(umlauf);
+        }
+    });
+    ExitCode::SUCCESS
+}
+
+/// Der Dienst arbeitet weiter, solange niemand beendet haben will.
+fn weiter_sollen() -> bool {
+    !llano_core::signale::beendet()
+}
+
+/// Eine Meldung, wenn die Datei nicht zu lesen war.
+fn einstellungswarnung(steuerung: &Steuerung) -> bool {
+    let (_, warnung) = steuerung.stand_der_datei();
+    if let Some(meldung) = warnung {
+        println!("{meldung}");
+    }
+    false
+}
+
+/// Eine Zeile pro Umlauf - kurz gehalten, weil der Dienst tagealt werden soll.
+fn meldung_umlauf(umlauf: &llano_core::controller::Umlauf) {
+    let bezug = umlauf.bezug.map_or_else(
+        || "keine Messung".to_owned(),
+        |grad| format!("{grad:.1} degC"),
+    );
+    let ziel = umlauf
+        .ziel
+        .map_or_else(|| "?".to_owned(), |stufe| format!("{stufe} %"));
+    println!(
+        "{}  Bezug {bezug}  Ziel {ziel}  Geraet {}",
+        if umlauf.verbunden {
+            "verbunden"
+        } else {
+            "kein Geraet"
+        },
+        umlauf.bericht.as_ref().map_or_else(
+            || "ohne Rueckmeldung".to_owned(),
+            |bericht| format!(
+                "{} % {}, {}",
+                bericht.fan_speed,
+                if bericht.powered_on { "an" } else { "aus" },
+                bericht.color_name()
+            )
+        )
+    );
+}
 
 /// Die Argumente ohne den Knaetchenpfad und sein Schalterwort.
 fn ohne_knoten(argumente: &[String]) -> Vec<String> {
@@ -504,6 +907,14 @@ fn main() -> ExitCode {
             stufe_setzen(wert, knoten.as_ref())
         }
         "light" => beleuchtung_setzen(&ohne_knoten(&argumente), knoten.as_ref()),
+        "power" | "strom" => {
+            let wort = argumente.get(1).map(String::as_str).unwrap_or("");
+            strom_setzen(wort, knoten.as_ref())
+        }
+        "curve" | "kurve" => kurve_zeigen(&ohne_knoten(&argumente)),
+        "rules" | "regeln" => regeln_zeigen(),
+        "config" | "einstellungen" => einstellungen(&ohne_knoten(&argumente)),
+        "daemon" | "dienst" => dienst(knoten.as_ref(), &argumente),
         "sensors" | "sensoren" => sensoren(),
         "selftest" => selbstpruefung(knoten.as_ref()),
         "version" | "--version" => {

@@ -26,7 +26,10 @@ use crate::protocol::{self, Lighting, ProtocolError, State, BUFFER_LEN};
 #[cfg(target_os = "linux")]
 use crate::device_linux as backend;
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(target_os = "windows")]
+use crate::device_windows as backend;
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
 use crate::device_other as backend;
 
 /// Was fehlt, wenn der Kuehler nicht antwortet.
@@ -122,6 +125,8 @@ pub fn describe_nodes() -> Vec<backend::NodeInfo> {
 pub fn backend_name() -> &'static str {
     if cfg!(target_os = "linux") {
         "device_linux"
+    } else if cfg!(target_os = "windows") {
+        "device_windows"
     } else {
         "noch nicht gebaut"
     }

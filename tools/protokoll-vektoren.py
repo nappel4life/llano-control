@@ -24,13 +24,86 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+from llanotool import config as config_mod  # noqa: E402
 from llanotool import protocol  # noqa: E402
+from llanotool.curve import CurveFollower, interpolate  # noqa: E402
 
 ZIEL = Path(__file__).resolve().parent.parent / "tests" / "byte-vektoren.json"
 
 
 def bytes_text(daten: bytes) -> str:
     return " ".join(f"{b:02x}" for b in daten)
+
+
+def kurven_vektoren() -> dict:
+    """Was die Kurve aus Temperaturen macht - fur beide Fassungen.
+
+    Die Werte stammen aus der Python-Fassung, nicht aus einem Kopf: Wer die
+    Rundung oder die Hysterese andert, andert diese Datei mit, und die
+    Rust-Prufung fallt auf, statt dass beide Implementierungen still
+    auseinanderlaufen. Die Zwischenfaelle mit der halben Prozentstufe sind
+    absichtlich dabei - Python rundet zur geraden Zahl, Rust wurde von der Null
+    weg runden, und genau dazwischen liegt der Unterschied.
+    """
+    standard = config_mod.DEFAULTS["curve"]
+    faelle = [
+        ("standardkurve", standard,
+         [20.0, 44.9, 45.0, 50.0, 55.0, 60.0, 65.5, 70.0, 91.9, 92.0, 200.0]),
+        ("halbe Prozentstufe", [[40, 25], [42, 28]],
+         [40.0, 40.5, 41.0, 41.5, 42.0]),
+        ("gerade und ungerade Mischung", [[40, 26], [42, 27]],
+         [40.0, 41.0, 41.999, 42.0]),
+        ("zwei Punkte", [[30, 6], [80, 60]], [20.0, 30.0, 55.0, 80.0, 99.0]),
+        ("flacher Verlauf", [[40, 20], [40.5, 20], [90, 21]], [39.0, 40.2, 60.0, 95.0]),
+    ]
+    interpolation = [
+        {"name": name, "kurve": kurve, "grad": grad, "stufe": interpolate(kurve, grad)}
+        for name, kurve, temperaturen in faelle
+        for grad in temperaturen
+    ]
+
+    folgen = [
+        ("drei Grad Hysterese", standard, 3.0,
+         [60.0, 70.0, 68.0, 67.0, 66.0, 62.0, 45.0]),
+        ("keine Hysterese", standard, 0.0, [70.0, 68.0, 66.0]),
+        ("grosser Abstand", standard, 12.0, [80.0, 70.0, 60.0, 50.0]),
+        ("erst kalt dann heiss", [[30, 6], [80, 60]], 3.0,
+         [30.0, 31.0, 79.0, 80.0, 55.0, 50.0]),
+    ]
+    verfolgung = []
+    for name, kurve, hysterese, messungen in folgen:
+        folger = CurveFollower(kurve, hysterese)
+        verfolgung.append({
+            "name": name,
+            "kurve": kurve,
+            "hysterese": hysterese,
+            "messungen": messungen,
+            "stufen": [folger.update(grad) for grad in messungen],
+        })
+
+    return {"interpolation": interpolation, "verfolgung": verfolgung}
+
+
+def einstellungs_vektoren() -> dict:
+    """Die Standardwerte und die Kurvennachschau, wie Python sie trifft."""
+    rohfaelle = [
+        ("leer", []),
+        ("ein Punkt", [[70, 40]]),
+        ("unsortiert", [[70, 40], [45, 20], [55, 30]]),
+        ("zu hoch und zu niedrig", [[60, 900], [40, -5]]),
+        ("Buchstaben dabei", [[70, 40], ["warm", 5], [50, None]]),
+        ("Zahlen als Text", [["60", "80"]]),
+        ("null Punkte uebrig", [[None, None], ["x", "y"]]),
+        ("gleiche Temperatur", [[60, 30], [60, 40]]),
+    ]
+    return {
+        "standardwerte": config_mod._normalise_curve(config_mod.DEFAULTS["curve"]),
+        "schluessel": sorted(config_mod.DEFAULTS),
+        "kurven_normierung": [
+            {"name": name, "roh": roh, "erwartet": config_mod._normalise_curve(roh)}
+            for name, roh in rohfaelle
+        ],
+    }
 
 
 def schreibe_vektoren() -> dict:
@@ -164,6 +237,8 @@ def schreibe_vektoren() -> dict:
         "schreiben": schreiben,
         "lesen": lesen,
         "zurueckweisen": zurueckweisen,
+        "kurve": kurven_vektoren(),
+        "einstellungen": einstellungs_vektoren(),
     }
 
 
@@ -181,7 +256,9 @@ def main() -> int:
     ZIEL.write_text(text, encoding="utf-8")
     print(f"{ZIEL}: {len(daten['schreiben'])} Schreib- und "
           f"{len(daten['lesen'])} Leseberichte, "
-          f"{len(daten['zurueckweisen'])} abzuweisende.")
+          f"{len(daten['zurueckweisen'])} abzuweisende, "
+          f"{len(daten['kurve']['interpolation'])} Kurvenwerte und "
+          f"{len(daten['kurve']['verfolgung'])} Hysterese-Verlaeufe.")
     return 0
 
 
