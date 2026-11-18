@@ -1413,6 +1413,17 @@ def run(controller: Controller | None = None, start_minimized: bool = False,
     app.setQuitOnLastWindowClosed(False)
     app.setWindowIcon(make_icon())
 
+    # Before anything reaches the pad, so a session that ends during startup
+    # still leaves the pad switched off instead of switched on.
+    wake = QuitWatcher()
+    try:
+        return _run_window(app, controller, wake, start_minimized, tray_only)
+    finally:
+        wake.close()
+
+
+def _run_window(app: QApplication, controller: Controller, wake: QuitWatcher,
+                start_minimized: bool, tray_only: bool) -> int:
     controller = controller or config_and_controller()
     if controller.cfg.get("power_on_start", True):
         controller.set_power(True, quiet=True)
@@ -1429,49 +1440,69 @@ def run(controller: Controller | None = None, start_minimized: bool = False,
                                 "Diese Oberflaeche hat kein Taskleisten-Symbol.",
                                 QSystemTrayIcon.MessageIcon.Warning, 5000)
 
-    stop_watching = _watch_for_quit(window)
-    status = app.exec()
-    stop_watching()
-    return status
+    if wake.attach(window):
+        return 0
+    return app.exec()
 
 
-def _watch_for_quit(window: MainWindow):
-    """Let the program quit on its feet when the session ends.
+class QuitWatcher:
+    """End the program on its feet when the session ends.
 
     Logging out and shutting the machine down send SIGTERM. Left alone that
-    kills the process where it stands and the pad keeps running, so the signal
-    is written into a pipe which the Qt event loop watches: that wakes the loop
-    and lets the window clean up as though "Beenden" had been clicked.
-    """
-    read_fd, write_fd = os.pipe()
-    os.set_blocking(read_fd, False)
-    os.set_blocking(write_fd, False)
+    kills the process where it stands - mid-poll, with the pad still running,
+    because the "switch off on exit" step never happens. So the signal writes
+    into a pipe that the Qt event loop watches, which wakes the loop and lets
+    the window clean up as though "Beenden" had been clicked.
 
-    def wake(_signum, _frame):
+    Two things matter here. A Python handler only runs once the interpreter
+    gets the thread back, and while the Qt loop waits for events it does not;
+    `set_wakeup_fd` is written by the interpreter itself on delivery, so the
+    loop wakes at once. And the watcher has to exist *before* the pad is
+    switched on: a session that ends during startup would otherwise leave the
+    pad running with nothing left to switch it off again. A signal that
+    arrives that early is remembered and carried out as soon as the window is
+    there to do the cleanup.
+    """
+
+    def __init__(self) -> None:
+        self.read_fd, self.write_fd = os.pipe()
+        os.set_blocking(self.read_fd, False)
+        os.set_blocking(self.write_fd, False)
+        self.signal: int | None = None
+        self.notifier: QSocketNotifier | None = None
+        self.previous = {signum: signal.signal(signum, self._wake)
+                         for signum in (signal.SIGTERM, signal.SIGINT)}
+        signal.set_wakeup_fd(self.write_fd)
+
+    def _wake(self, signum, _frame) -> None:
+        self.signal = signum
         try:
-            os.write(write_fd, b"x")
+            os.write(self.write_fd, b"x")
         except OSError:
             pass
 
-    # A Python handler only runs once the interpreter gets the thread back, and
-    # while the Qt loop is waiting for events it does not. Waking the pipe is
-    # done by the interpreter itself on signal delivery, so the loop wakes up
-    # at once instead of whenever the next poll happens to finish.
-    signal.set_wakeup_fd(write_fd)
-    notifier = QSocketNotifier(read_fd, QSocketNotifier.Type.Read, window)
-    notifier.activated.connect(lambda *_: window.quit())
-    previous = {signum: signal.signal(signum, wake)
-                for signum in (signal.SIGTERM, signal.SIGINT)}
+    def attach(self, window: "MainWindow") -> bool:
+        """Hand the wake-up to the window.
 
-    def close() -> None:
-        for signum, handler in previous.items():
+        Returns True when a signal arrived before the window existed, which
+        means there is nothing to wait for: the window has just cleaned up and
+        the event loop below is better off never starting.
+        """
+        self.notifier = QSocketNotifier(self.read_fd, QSocketNotifier.Type.Read, window)
+        self.notifier.activated.connect(lambda *_: window.quit())
+        if self.signal is None:
+            return False
+        window.quit()
+        return True
+
+    def close(self) -> None:
+        for signum, handler in self.previous.items():
             signal.signal(signum, handler)
         signal.set_wakeup_fd(-1)
-        notifier.setEnabled(False)
-        for fd in (read_fd, write_fd):
+        if self.notifier is not None:
+            self.notifier.setEnabled(False)
+        for fd in (self.read_fd, self.write_fd):
             os.close(fd)
-
-    return close
 
 
 def config_and_controller() -> Controller:
