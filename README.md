@@ -377,6 +377,26 @@ Oberfläche aus: `assets/screenshot.png`, beim Ziehen eines Kurvenpunkts
 Die Prüfsummen- und Rahmenbildung ist gegen mitgeschnittene Pakete getestet,
 ausserdem gegen die Reports, die dieses Gerät tatsächlich zurückmeldet.
 
+## Die Rust-Fassung (in Arbeit)
+
+Unter `rust/` wächst ein Unterbau, der dasselbe Protokoll noch einmal baut: die
+neun Byte eines Berichts, der Gerätezugriff über hidraw, die Temperaturen aus
+`/sys/class/hwmon`. Der Sinn ist nicht Geschwindigkeit, sondern Messtreue —
+beide Fassungen müssen dieselben Byte-Folien bauen und gleich lesen, die
+`tools/protokoll-vektoren.py` aus dem am Gerät gemessenen Python-Protokoll
+erzeugt. Weicht eine Seite ab, scheitert die Prüfung und nicht später der
+Kühler.
+
+```bash
+cd rust && cargo test
+cargo run -- status        # liest den Kühler, schreibt nichts
+```
+
+**Diese Fassung liest nur.** Kurve, Hintergrunddienst, Konfiguration und
+Windows fehlen noch; Schreiben bleibt bei `llano`, bis jeder Schreibweg am
+echten Gerät nachgemessen ist. Zwei getrennte Programme also, keine zwei
+Hälften eines. Einzelheiten in [rust/README.md](rust/README.md).
+
 ## Verifiziert am Gerät
 
 Farbe, Effekt, Effekttakt, Helligkeit, LEDs aus/an und Lüfterstufen wurden auf
