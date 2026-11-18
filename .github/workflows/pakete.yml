@@ -171,7 +171,8 @@ jobs:
       - name: Gebautes holen
         uses: actions/download-artifact@v4
         with:
-          pattern: "*"
+          # Nur die fertigen Dateien, nicht die Pruefbilder aus dem Testlauf.
+          pattern: "{linux,windows}"
           path: stuecke
           merge-multiple: true
 
