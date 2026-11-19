@@ -16,6 +16,7 @@ import xml.etree.ElementTree as Baum
 WURZEL = pathlib.Path(__file__).resolve().parents[1]
 INSTALLER = (WURZEL / "packaging" / "windows" / "llano.iss").read_text(encoding="utf-8")
 EINSTELLUNGEN = (WURZEL / "packaging" / "windows" / "helfer.config").read_text(encoding="utf-8")
+BAU = (WURZEL / ".github" / "workflows" / "pakete.yml").read_text(encoding="utf-8")
 
 # Die vier Schluessel, die LibreHardwareMonitor in seinem MainForm liest.
 # Heissen sie anders, ist der Web-Server nach der Installation einfach aus.
@@ -86,3 +87,35 @@ class HakenFuerDieMesshilfe(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DieBauautomatikUrteiltSelbst(unittest.TestCase):
+    """Der letzte Befehl eines Schritts darf nicht sein Urteil sein.
+
+    Die Bauautomatik haelt die Rueckgabe des letzten Befehls fuer das Ergebnis
+    des ganzen Schritts. Ein Aufraeum-taskkill, dem niemand gehoert, gibt 128
+    - und ein Lauf, in dem alle Pruefungen gruen waren, endet als Fehlschlag.
+    Genau so ist es passiert.
+    """
+
+    def setUp(self):
+        start = BAU.index("- name: Installer wirklich installieren")
+        # Die einzelne Suche waehlt den naechsten Abschnitt - der Linux-Lauf
+        # heisst genauso und liegt vor diesem hier.
+        ende = BAU.index("- name: Dateien fuers Verzeichnis", start)
+        self.schritt = BAU[start:ende]
+
+    def test_nach_dem_aufraeumen_steht_eine_nulle(self):
+        aufraeumen = self.schritt.rindex("taskkill.exe")
+        self.assertIn("$global:LASTEXITCODE = 0", self.schritt[aufraeumen:],
+                      "der letzte Befehl des Schritts entscheidet ueber den Lauf")
+
+    def test_eine_ausbleibende_antwort_ist_eine_warnung(self):
+        # Auf dem kopflosen Bauauto-Rechner antwortet niemand auf einem Hafen,
+        # und das ist kein Grund, nichts herauszugeben. Geprueft wird deshalb
+        # die Einstellung, die man nachlesen kann - die Antwort nicht.
+        selbst = self.schritt[self.schritt.index("if ($null -eq $antwort)"):]
+        block = selbst[:selbst.index("Messhilfe antwortet:")]
+        self.assertIn("ACHTUNG", block)
+        self.assertIn("runWebServerMenuItem", block)
+        self.assertIn("Ihre Einstellungen liegen aber richtig", block)

@@ -365,20 +365,36 @@ jobs:
             } catch { }
           }
           if ($null -eq $antwort) {
-            # Der Bauwagen hat weder Prozessor noch Mainboard-Sensoren, und sein
-            # Treiber darf dort womoeglich nicht laden. Eine fehlende Antwort ist
-            # hier also eine Warnung, kein Grund, nichts herauszugeben - dass die
-            # Dateien und ihre Einstellungen da sind, steht oben schon fest.
+            # Der Bauautomation-Rechner hat keine Oberflaeche zum Anzeigen, keine
+            # richtigen Sensoren und darf seinen Treiber womoeglich nicht laden.
+            # Eine ausbleibende Antwort ist hier deshalb eine Warnung, kein Grund,
+            # nichts herauszugeben - dass die Dateien da sind, steht oben fest,
+            # und dass die Einstellungen die richtigen sind, steht gleich darunter.
             "ACHTUNG: die Messhilfe antwortete in 30 Sekunden nicht auf Port 8085."
             Get-Content "$programme\helfer\LibreHardwareMonitor.config" -ErrorAction SilentlyContinue
+            $config = Get-Content "$programme\helfer\LibreHardwareMonitor.config" -Raw -ErrorAction SilentlyContinue
+            if ($config -notmatch "runWebServerMenuItem.*True" -or $config -notmatch "listenerPort.*8085") {
+              "Die beigelegten Einstellungen der Messhilfe sind nicht angekommen."
+              exit 1
+            }
+            "Ihre Einstellungen liegen aber richtig: Web-Server an, Hafen 8085."
           } else {
             "Messhilfe antwortet: Knoten " + $antwort.Text + " mit " +
               @($antwort.Children).Count + " Unterknoten"
             & "$programme\llano.exe" sensors
+          }
+          $global:LASTEXITCODE = 0
+
+          # Aufräumen. Dass ein Prozess dabei nicht (mehr) läuft, ist keine
+          # Meldung wert und darf auch keine sein: taskkill gibt 128 zurueck,
+          # wenn ihm niemand gehoert, und die Bauautomatik haelt die letzte
+          # Rueckgabe einer Schrittfolie fuer ihr eigenes Urteil. Genau so ist
+          # dieser Lauf fast als Fehlschlag geendet - nach allen erfolgreichen
+          # Pruefungen, an einem Prozess, der gar nicht lief.
+          foreach ($name in "LibreHardwareMonitor", "llano-messhilfe") {
+            & "$env:SystemRoot\System32\taskkill.exe" /F /IM "$name.exe" 2>$null | Out-Null
             $global:LASTEXITCODE = 0
           }
-          & "$env:SystemRoot\System32\taskkill.exe" /F /IM LibreHardwareMonitor.exe 2>$null | Out-Null
-          & "$env:SystemRoot\System32\taskkill.exe" /F /IM llano-messhilfe.exe 2>$null | Out-Null
 
       - name: Dateien fuers Verzeichnis
         uses: actions/upload-artifact@v4
