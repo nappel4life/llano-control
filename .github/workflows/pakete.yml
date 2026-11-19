@@ -210,7 +210,9 @@ jobs:
           $Datum = "$env:RUNNER_TEMP\messhilfe.zip"
           $Ausgepackt = "$env:RUNNER_TEMP\entpackt"
           Invoke-WebRequest "$Grund/releases/download/$Fassung/LibreHardwareMonitor.zip" -OutFile $Datum
-          "Gepruefte Datei: " + (Get-FileHash $Datum -Algorithm SHA256).Hash
+          # Die Pruefsumme ins Protokoll, damit ein spaeterer Bau zeigt,
+          # ob dieselbe Datei gemeint ist - geprueft wird hier nichts.
+          "Die Datei hat die Pruefsumme: " + (Get-FileHash $Datum -Algorithm SHA256).Hash
           Remove-Item -Recurse -Force $Ausgepackt -ErrorAction SilentlyContinue
           Expand-Archive $Datum -DestinationPath $Ausgepackt
           # Die Lizenztexte gehoert mit, weil die Lizenz der Messhilfe das

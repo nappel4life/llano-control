@@ -73,6 +73,14 @@ function NeueMappe([string]$Pfad) {
     return (Resolve-Path $Pfad).Path
 }
 
+function ImAntwortPfad([string]$Pfad) {
+    # In einer Antwortdatei steht ein Argument pro Zeile, und die Zeile wird an
+    # Leerzeichen geteilt. Pfade mit Leerzeichen (ein Benutzerordner heisst bei
+    # vielen so) brauchen deshalb Anfuehrungszeichen - die anderen nicht.
+    if ($Pfad -like "* *") { return '"' + $Pfad + '"' }
+    return $Pfad
+}
+
 # ------------------------------------------------- 1) die Messhilfe als Helfer
 
 $ZielMesshilfe = NeueMappe (Join-Path $Wurzel $Messhilfe)
@@ -96,16 +104,47 @@ $Ausgabe = Join-Path $ZielMesshilfe "llano-messhilfe.exe"
 
 if ($csc) {
     Write-Schritt "Uebersetzen mit $csc"
-    $Argumente = @(
+    $Bibliothek = Join-Path $ZielMesshilfe "LibreHardwareMonitorLib.dll"
+    if (-not (Test-Path $Bibliothek)) {
+        throw "Die Messhilfe wurde nicht mitgenommen: $Bibliothek fehlt."
+    }
+
+    # Die Argumente kommen in eine Antwortdatei und nicht in die Befehlszeile.
+    # Uebersetzer dieser Art lesen so eine Datei (als '@pfad'), und dann haengt
+    # nichts mehr davon ab, wie eine Shell Doppelpunkte und Anfuehrungszeichen
+    # weiterreicht. Genau daran ist der erste Bauversuch zerbrochen: Der
+    # Uebersetzer meldete 'Missing file specification fuer /reference:', weil
+    # der Dateiname auf dem Weg zu ihm verloren ging.
+    $Zeilen = @(
         "/nologo", "/optimize+", "/target:exe", "/platform:anycpu",
-        "/out:$Ausgabe",
-        "/reference:" + (Join-Path $ZielMesshilfe "LibreHardwareMonitorLib.dll"),
+        "/out:" + (ImAntwortPfad $Ausgabe),
+        "/reference:" + (ImAntwortPfad $Bibliothek),
         "/reference:System.dll",
         "/reference:System.Core.dll",
-        $Quelltext
+        (ImAntwortPfad $Quelltext)
     )
-    & $csc $Argumente
-    if ($LASTEXITCODE -ne 0) { throw "Der Uebersetzer hat $LASTEXITCODE zurueckgegeben." }
+    $Behelf = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
+    $Antwort = Join-Path $Behelf "llano-messhilfe.csc.rsp"
+    # Mit Zeichensetzung am Anfang, damit der Uebersetzer die Datei als UTF-8
+    # liest und ein Pfad mit Umlauten kein Ratbuchstabenraten wird.
+    [System.IO.File]::WriteAllLines($Antwort, $Zeilen,
+                                    (New-Object System.Text.UTF8Encoding($true)))
+    Write-Schritt "Antwortdatei: $Antwort"
+    & $csc "@$Antwort"
+    if ($LASTEXITCODE -ne 0) {
+        # Zweiter Versuch: dieselben Angaben direkt, hier ausdruecklich statt
+        # als Mappe - was von beiden ankommt, entscheidet der Uebersetzer, und
+        # der Versuch kostet zwei Sekunden statt eines Bau-Laufs.
+        Write-Schritt "noch einmal ohne Antwortdatei"
+        & $csc /nologo /optimize+ /target:exe /platform:anycpu `
+              "/out:$Ausgabe" "/reference:$Bibliothek" `
+              /reference:System.dll /reference:System.Core.dll $Quelltext
+        if ($LASTEXITCODE -ne 0) {
+            Write-Host "Bekommen hat der Uebersetzer:"
+            $Zeilen | ForEach-Object { Write-Host "  [$_]" }
+            throw "Der Uebersetzer hat $LASTEXITCODE zurueckgegeben."
+        }
+    }
 } else {
     # Keine Windows-Framework-Uebersetzer: zweiter Weg ueber das .NET-Werkzeug
     # und die Referenzbaugruppen als Paket. Langsamer, aber laeuft auch dort.

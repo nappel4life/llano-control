@@ -90,8 +90,9 @@ TEXT_OHNE_ANTWORT = (
 
 TEXT_KEINE_WERTE = (
     "Die mitgelieferte Messhilfe meldet keine Temperatur. Treiber und Rechte "
-    "sind da, die Fuehler schweigen - die Kurve kann sich dann nur an der "
-    "Grafikkarte oder einer Waermezone orientieren.")
+    "sind da, die Fuehler schweigen trotzdem - manche Rechner verweigern die "
+    "Prozessorregister zusaetzlich (Speicherintegritaet im BIOS). Die Kurve "
+    "kann sich dann nur an der Grafikkarte oder einer Waermezone orientieren.")
 
 
 def _kandidaten() -> list[str]:

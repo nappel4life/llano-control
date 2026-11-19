@@ -131,8 +131,31 @@ internal static class Messhilfe
     private static Computer offnen(out string grund)
     {
         grund = null;
+
+        Computer rechner = neueKonfiguration(true);
+        string grundVollstaendig = oeffne(rechner);
+        if (grundVollstaendig == null) { return rechner; }
+
+        // Der Prozessor ist das einzige Stueck, das einen Kernel-Treiber
+        // anfasst. Scheitert das Oeffnen daran, sind Grafikkarte und Mainboard
+        // immer noch gewonnen: Ohne diesen zweiten Versuch stuetze ein Rechner
+        // ohne Treiber ganz ohne Werte ab, und die Kurve haette sich selbst
+        // abgeschafft, wo sie doch nur eine Zahl sucht.
+        Computer ohneProzessor = neueKonfiguration(false);
+        string grundOhne = oeffne(ohneProzessor);
+        if (grundOhne == null) { return ohneProzessor; }
+
+        grund = grundVollstaendig;
+        return null;
+    }
+
+    private static Computer neueKonfiguration(bool mitProzessor)
+    {
+        // Arbeitsspeicher und Laufwerke kosten Sekunden und bringen einer
+        // Kuehlerkurve nichts; das Netzteil haengt an einer seriellen
+        // Schnittstelle, und das Netz meldet keine Waerme.
         Computer rechner = new Computer();
-        rechner.IsCpuEnabled = true;
+        rechner.IsCpuEnabled = mitProzessor;
         rechner.IsGpuEnabled = true;
         rechner.IsMotherboardEnabled = true;
         rechner.IsControllerEnabled = true;
@@ -141,16 +164,25 @@ internal static class Messhilfe
         rechner.IsNetworkEnabled = false;
         rechner.IsPsuEnabled = false;
         rechner.IsBatteryEnabled = false;
+        return rechner;
+    }
+
+    // Null, wenn das Geraet offen ist; sonst der Satz, warum nicht. Ein
+    // halb geoeffnetes Stueck wird zurueckgegeben, sonst haelte der zweite
+    // Versuch einen Treiber offen, der gerade abgelehnt hat.
+    private static string oeffne(Computer rechner)
+    {
         try
         {
             rechner.Open();
+            return null;
         }
         catch (Exception ausnahme)
         {
-            grund = ausnahme.GetType().Name + ": " + ausnahme.Message;
-            return null;
+            try { rechner.Close(); }
+            catch (Exception) { }
+            return ausnahme.GetType().Name + ": " + ausnahme.Message;
         }
-        return rechner;
     }
 
     private static void beobachteEingabe()
