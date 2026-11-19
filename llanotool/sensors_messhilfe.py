@@ -383,11 +383,12 @@ class Messhilfe:
         except (OSError, ValueError):
             pass
         finally:
-            try:
-                if prozess.stdout:
-                    prozess.stdout.close()
-            except OSError:
-                pass
+            for kanal in (prozess.stdout, prozess.stdin):
+                try:
+                    if kanal:
+                        kanal.close()       # der Helfer merkt das und geht
+                except OSError:
+                    pass
             try:
                 prozess.wait(timeout=2.0)
             except Exception:               # noqa: BLE001

@@ -331,23 +331,21 @@ class Sensors:
         elif hilfen and not self._hat_cpu_temperatur():
             stille = [hilfe for hilfe in hilfen if not hilfe.lesen()]
             anwesend = [hilfe for hilfe in stille if getattr(hilfe, "anwesend", False)]
+            # Welchen Grund die stillen Quellen haben, wird zuerst gefragt -
+            # auch dann, wenn ausserdem jemand liefert. Sonst verdeckt ein
+            # Helfer ohne Treiber die Antwort des anderen, oder, umgekehrt, ein
+            # nicht installierter Helfer verschluckt die bekannte Meldung.
+            grund = next((h.hinweis() for h in stille if h.hinweis()), None)
             if len(stille) == len(hilfen) and not anwesend:
                 meldungen.append(TEXT_HILFE_FEHLT)
-            elif len(stille) == len(hilfen):
-                # Die mitgebrachte Messhilfe liegt im Programmordner und
-                # schweigt trotzdem - dann ist "leg dir erst eine Messhilfe zu"
-                # die falsche Bitte. Es fehlt an Treiber oder Rechten, und
-                # welcher von beiden das ist, weiss nur sie selbst.
-                grund = anwesend[0].hinweis() or TEXT_HILFE_FEHLT
+            elif grund:
                 meldungen.append(grund)
-            elif stille:
-                grund = stille[0].hinweis()     # die andere Seite liefert ja
-                if grund:
-                    meldungen.append(grund)
             else:
-                # Beide Helfer antworten, keiner nennt den Prozessor. Ohne
-                # diese Zeile haette die Oberflaeche geschwiegen, und
-                # "schweigen" war noch immer die schlechteste Auskunft.
+                # Es antwortet niemand oder keiner nennt den Prozessor, und
+                # keine der stillen Quellen weiss einen Grund. "Leg dir erst
+                # eine Messhilfe zu" ist hier die falsche Bitte - die liegt
+                # oft langst im Ordner. Was fehlt, ist der Blick in den
+                # Prozessor, und der hat einen anderen Namen.
                 meldungen.append(TEXT_OHNE_PROZESSOR)
         return "  ".join(m for m in meldungen if m) or None
 

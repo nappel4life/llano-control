@@ -193,6 +193,30 @@ class DieSeiteFragtNach(unittest.TestCase):
         self.assertIn("Shared Memory", note)
         self.assertIn("CPU-Temperaturen mitinstallieren", note)
 
+    def test_eine_nicht_vorhandene_Messhilfe_zehlt_nicht_als_stumm(self):
+        # Der Fall, den nur die Bauautomatik sieht: Die mitgebrachte Messhilfe
+        # liegt dort nicht, und der Web-Server liefert ein Mainboard, aber
+        # keinen Prozessor. Eine Quelle, die gar nicht da ist, darf die
+        # Auskunft nicht in ein Schweigen verwandeln.
+        with mock.patch.object(helfer, "datei", return_value=None):
+            self.messstellen._messhilfe = helfer.Messhilfe()
+        self.messstellen._lhm = mock.Mock(lesen=lambda: {"lhm:Mainboard": 41.0},
+                                          stillstand=None, hinweis=lambda: None)
+        self.assertIn("Administrator", self.messstellen.note())
+
+    def test_der_treibergrund_gewinnt_auch_neben_einer_liefernden_quelle(self):
+        # Grafikkarte und Mainboard meldet sie auch ohne Treiber. Der Grund,
+        # warum der Prozessor fehlt, steht trotzdem da - sonst erklart die
+        # fröhliche Quelle das Fehlen eines Werts, das sie selbst nicht kennt.
+        self.messstellen._messhilfe = mock.Mock(
+            lesen=lambda: {}, stillstand=None, anwesend=True,
+            hinweis=lambda: "Dieser Rechner hat keinen Treiber dafuer (PawnIO).")
+        self.messstellen._lhm = mock.Mock(lesen=lambda: {"lhm:GPU Hot Spot": 61.0},
+                                          stillstand=None, hinweis=lambda: None)
+        note = self.messstellen.note()
+        self.assertIn("PawnIO", note)
+        self.assertNotIn("Shared Memory", note)
+
     def test_eine_liefernde_quelle_laesst_die_andere_erklaeren(self):
         self.prozessor = True         # dieselbe Quelle meldet ihn ja
         self.messstellen._messhilfe = mock.Mock(
