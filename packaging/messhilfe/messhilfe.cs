@@ -257,24 +257,20 @@ internal static class Messhilfe
     // Alle Geraete, auch die unter einem anderen: die Fuehler eines
     // Prozessors haengen bei manchen Treibern am Unterknoten, und wer nur die
     // obere Ebene liest, haelt den Rechner fuer kalt.
-    private static List<IHardware> neueAlle(IHardware[] oben)
+    // Die Bibliothek liefert eine Liste und kein Feld, und ein Feld nimmt
+    // diese Fassung auch an - danach haengt nichts mehr davon ab, welche der
+    // beiden Sorten die Fassung gerade zurueckgibt.
+    private static List<IHardware> neueAlle(IEnumerable<IHardware> oben)
     {
         List<IHardware> alle = new List<IHardware>();
         if (oben == null) { return alle; }
-        for (int i = 0; i < oben.Length; i++)
+        foreach (IHardware geraet in oben)
         {
-            if (oben[i] == null) { continue; }
-            alle.Add(oben[i]);
+            if (geraet == null) { continue; }
+            alle.Add(geraet);
             try
             {
-                IHardware[] unten = oben[i].SubHardware;
-                if (unten != null)
-                {
-                    for (int u = 0; u < unten.Length; u++)
-                    {
-                        if (unten[u] != null) { alle.Add(unten[u]); }
-                    }
-                }
+                alle.AddRange(neueAlle(geraet.SubHardware));
             }
             catch (Exception) { }
         }

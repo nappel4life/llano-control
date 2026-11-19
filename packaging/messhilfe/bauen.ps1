@@ -109,19 +109,29 @@ if ($csc) {
         throw "Die Messhilfe wurde nicht mitgenommen: $Bibliothek fehlt."
     }
 
-    # Die Argumente kommen in eine Antwortdatei und nicht in die Befehlszeile.
+    # Die Argumente kommen in eine Antwortdatei und nicht in die Befehlszeile:
     # Uebersetzer dieser Art lesen so eine Datei (als '@pfad'), und dann haengt
-    # nichts mehr davon ab, wie eine Shell Doppelpunkte und Anfuehrungszeichen
-    # weiterreicht. Genau daran ist der erste Bauversuch zerbrochen: Der
-    # Uebersetzer meldete 'Missing file specification fuer /reference:', weil
-    # der Dateiname auf dem Weg zu ihm verloren ging.
+    # nichts davon ab, wie eine Shell Doppelpunkte und Anfuehrungszeichen
+    # weiterreicht.
+    #
+    # Und die Felder werden vorher ausgerechnet, nicht in der Mappe mit "+"
+    # aneinandergefuegt. Genau daran sind die beiden ersten Bauversuche
+    # zerbrochen: aus "/out:" + Pfad innerhalb von @( ) wurden zwei Felder, der
+    # Uebersetzer sah ein "/out:" ohne Datei dahinter und nannte das "Missing
+    # file specification". Ein Feld pro Zeile, keine Kommas, kein Addieren.
+    $AusgabeAntwort = ImAntwortPfad $Ausgabe
+    $BibliothekAntwort = ImAntwortPfad $Bibliothek
+    $QuelltextAntwort = ImAntwortPfad $Quelltext
     $Zeilen = @(
-        "/nologo", "/optimize+", "/target:exe", "/platform:anycpu",
-        "/out:" + (ImAntwortPfad $Ausgabe),
-        "/reference:" + (ImAntwortPfad $Bibliothek),
-        "/reference:System.dll",
-        "/reference:System.Core.dll",
-        (ImAntwortPfad $Quelltext)
+        "/nologo"
+        "/optimize+"
+        "/target:exe"
+        "/platform:anycpu"
+        "/out:$AusgabeAntwort"
+        "/reference:$BibliothekAntwort"
+        "/reference:System.dll"
+        "/reference:System.Core.dll"
+        $QuelltextAntwort
     )
     $Behelf = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
     $Antwort = Join-Path $Behelf "llano-messhilfe.csc.rsp"
@@ -130,6 +140,19 @@ if ($csc) {
     [System.IO.File]::WriteAllLines($Antwort, $Zeilen,
                                     (New-Object System.Text.UTF8Encoding($true)))
     Write-Schritt "Antwortdatei: $Antwort"
+    # Was wirklich dort steht, wird nachgelesen: der erste und der zweite
+    # Bauversuch haben gezeigt, dass die Zeilen unterwegs zerlegen koennen,
+    # und ein Uebersetzer, der "/out:" ohne Datei sieht, raetet nicht - er
+    # bricht ab, aber erst nach ihm.
+    $Gelesen = @(Get-Content $Antwort)
+    $AusgabeZeile = @($Gelesen | Where-Object { $_ -like "/out:*llano-messhilfe.exe*" })
+    $ReferenzZeile = @($Gelesen | Where-Object { $_ -like "/reference:*LibreHardwareMonitorLib.dll*" })
+    if ($Gelesen.Count -ne $Zeilen.Count -or $AusgabeZeile.Count -ne 1 -or
+        $ReferenzZeile.Count -ne 1) {
+        Write-Host "In der Antwortdatei steht:"
+        $Gelesen | ForEach-Object { Write-Host "  [$_]" }
+        throw "Die Uebersetzer-Angaben sind zerlegt angekommen."
+    }
     & $csc "@$Antwort"
     if ($LASTEXITCODE -ne 0) {
         # Zweiter Versuch: dieselben Angaben direkt, hier ausdruecklich statt

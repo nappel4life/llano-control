@@ -9,6 +9,7 @@ am richtigen Ort liegt, entscheidet die Bauautomatik auf einem echten Windows
 """
 
 import pathlib
+import re
 import sys
 import time
 import unittest
@@ -248,6 +249,22 @@ class DieVerabredungUeberDieSprachenHinweg(unittest.TestCase):
 
     def test_mit_der_bibliothek_liest_auch_der_unterknoten(self):
         self.assertIn("SubHardware", BRUECKE_QUELLTEXT)
+
+    def test_die_uebersetzungszeilen_werden_nicht_unterwegs_auseinandergezogen(self):
+        # Der Fehler, den nur die Bauautomatik sieht: "/out:" + Pfad innerhalb
+        # einer Mappe ergibt zwei Felder, und der Uebersetzer bekommt ein
+        # "/out:" ohne Datei. Deshalb steht jede Angabe als eigenes Feld da.
+        skript = (WURZEL / "packaging" / "messhilfe" / "bauen.ps1").read_text(encoding="utf-8")
+        feld, rest = skript.split("$Zeilen = @(", 1)
+        block = rest.split(")", 1)[0]
+        for feld in block.splitlines():
+            # Die Optionsnamen enthalten selbst ein Plus ("/optimize+"), also
+            # wird nur ausserhalb der Anfuehrungszeichen nachgerechnet.
+            nackt = re.sub(r'"[^"]*"', "", feld)
+            self.assertNotIn("+", nackt, f"in {feld.strip()} wird wieder addiert")
+            self.assertNotIn(",", nackt, f"{feld.strip()} haengt an einem Komma")
+        for angabe in ("/out:", "/reference:$BibliothekAntwort", "System.Core.dll"):
+            self.assertIn(angabe, block)
 
     def test_die_uebersetzung_schliesst_die_fremden_bausteine_aus(self):
         skript = (WURZEL / "packaging" / "messhilfe" / "bauen.ps1").read_text(encoding="utf-8")
