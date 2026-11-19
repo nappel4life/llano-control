@@ -99,7 +99,7 @@ einen Quelle, Grafikkarte von der anderen.
 
 ## Was kaputt war und wie es gefunden wurde
 
-Vier Fehler, vier verschiedene Lehren. Alle sind zu und geprüft.
+Sieben Fehler, sieben verschiedene Lehren. Alle sind zu und geprüft.
 
 **1. Eine kaputte Einstellungsdatei ließ die Oberfläche sterben, nachdem sie
 den Kühler schon eingeschaltet hatte** (1.1.5). Grund: ungeprüfte Werte
@@ -132,6 +132,32 @@ jetzt in Prüfungen fest.
 Anzeige hatte ein Feld zu viel und schob die Ereigniskennung eine Stufe höher —
 Windows hätte eine leere Kennung vorgefunden. Bisher folgenlos, weil diese
 Anzeige nur der Selbsttest liest; trotzdem richtig gestellt.
+
+**5. Eine stille Quelle verschluckte die Auskunft** (1.3.0). Auf Windows wird
+die mitgebrachte Messhilfe immer erzeugt; liegt sie nicht im Ordner, schweigt
+sie ohne Grund, und dieses Schweigen fing den Satz ab, der fuer den Fall da war
+„da antwortet jemand, aber ohne Prozessor". Die Oberflaeche stand also genau
+dann ohne Satz da, wenn jemand ihn am noetigsten hat. Gefunden hat das die
+Bauautomatik, kein Prueflauf hier: Linux kennt keine mitgebrachte Messhilfe,
+also konnte der Fehler dort gar nicht vorkommen. Seitdem gilt in `note()`:
+Grund zuerst, und ueber allen stillen Quellen.
+
+**6. Der Uebersetzer sah `"/out:"` ohne Datei** (1.3.0). In einer
+Powershell-Mappe werden aus `"/out:" + Pfad` **zwei** Felder, kein Addiertes -
+der Compiler bekam ein `/out:` ohne Angabe und nannte das „Missing file
+specification". Deux Bauversuche brauchte es, bis das im Protokoll stand, weil
+der erste nur die Fehlermeldung zeigte und nicht, was gemeint war. Seitdem
+stehen die Angaben vorher fest in einer Antwortdatei, das Skript liest seine
+eigene Datei nach dem Schreiben noch einmal, und die Pruefung horzt die Mappe
+auf Addieren und Kommas. Nebenbei fand der Compiler einen echten Fehler im
+eigenen Helfer: Geraete kommen als Liste, nicht als Feld.
+
+**7. Ein Aufraeumen gab das Urteil ab** (1.3.0). Alle Pruefungen waren gruen -
+Uebersetzen, Installieren, installierte Selbstdiagnose, laufende Oberflaeche,
+Helfer im Ordner - und der Lauf endete trotzdem rot, weil als letztes ein
+`taskkill` lief, dem niemand gehoerte (Rueckgabe 128). Die Bauautomatik haelt
+die Rueckgabe des letzten Befehls fuer ihr Ergebnis. Seither steht nach dem
+Aufraeumen ausdruecklich eine Null, und eine Pruefung huetet das.
 
 ## Reden statt raten
 
@@ -180,9 +206,12 @@ schreibt. Erst mit diesem Lauf steht also fest, dass der Einbau funktioniert.
 
 ## Offene Punkte
 
-* **1.3.0 muss durch die Bauautomatik** — zum ersten Mal wird dort C#
-  uebersetzt. Uebersetzer, Referenzen und die ersten Taktseconds des Helfers
-  sind auf einem echten Windows zu beweisen.
+* **Der Helfer ist auf einem echten Windows uebersetzt und installiert** und
+  meldet sich dort selbst: `Bibliothek 0.9.6.0, Treiber fehlt, Rechte
+  erhoeht`. Bewiesen ist damit die Kette, nicht den Zahl: Ein Bauauto-Rechner
+  hat keine Fuehler, deshalb steht dort „keine Messstelle gemeldet".
+* **Der Beweis von echten Zahlen fehlt weiter** — am eigenen Geraet mit
+ PawnIO und erhohten Rechten.
 * **Ohne erhöhte Rechte fehlen die Prozessoren.** Der Helfer erfaehrt das und
   sagt es, aber ein Klick ist das noch nicht. Der naechste Schritt ist ein
   erhoht gestarteter Helfer (die Leitung darf ein UAC-Fenster nicht
