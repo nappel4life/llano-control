@@ -210,8 +210,8 @@ schreibt. Erst mit diesem Lauf steht also fest, dass der Einbau funktioniert.
   meldet sich dort selbst: `Bibliothek 0.9.6.0, Treiber fehlt, Rechte
   erhoeht`. Bewiesen ist damit die Kette, nicht den Zahl: Ein Bauauto-Rechner
   hat keine Fuehler, deshalb steht dort „keine Messstelle gemeldet".
-* **Der Beweis von echten Zahlen fehlt weiter** — am eigenen Geraet mit
- PawnIO und erhohten Rechten.
+* **Der Beweis von echten Zahlen fehlt weiter** — gemessen am eigenen
+  Rechner, mit PawnIO und erhohten Rechten.
 * **Ohne erhöhte Rechte fehlen die Prozessoren.** Der Helfer erfaehrt das und
   sagt es, aber ein Klick ist das noch nicht. Der naechste Schritt ist ein
   erhoht gestarteter Helfer (die Leitung darf ein UAC-Fenster nicht
