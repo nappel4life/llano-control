@@ -189,46 +189,40 @@ jobs:
           }
 
       - name: Messhilfe fuer CPU-Temperaturen dazulegen
-        # Der Haken "CPU-Temperaturen mitinstallieren" im Installer legt diese
-        # Messhilfe in den eigenen Programmordner, damit die Prozessortemperatur
-        # ohne zweiten Download da ist. Windows gibt sie nur an ein Programm mit
-        # Kernel-Treiber heraus, und die aktuelle Fassung bringt dafuer einen
-        # signierten Treiber mit. Der ubliche Kunstgriff - eine DLL mit Ring-0-
-        # Zugriff dazulegen - ware heute der blockierte WinRing0-Treiber: Defender
-        # meldet ihn als angreifbar, und die Speicherintegritaet laedt ihn nicht.
-        # Die kleinere der beiden Fassungen laeuft auf der .NET-Fassung, die
-        # Windows 10 und 11 selbst mitbringen.
+        # Windows gibt die Prozesstemperatur nur an ein Programm mit
+        # Kernel-Treiber heraus. Statt auf ein fremdes Programm zu verweisen,
+        # liegt die Messhilfe (LibreHardwareMonitorLib) deshalb im Installer
+        # mit bei - zusammen mit einem zwanzig Kilobyte kleinen Helfer, der
+        # sie im Auftrag des Steuerprogramms fragt. Uebersetzt wird mit dem
+        # Compiler, den Windows selbst mitbringt; die Bibliothek ist eine
+        # .NET-Framework-4.7.2-Baugruppe, und die hat jeder aktuelle Windows-
+        # Rechner schon an Bord.
+        #
+        # Die Fassung 0.9.6 liest den Prozessor ueber den signierten Treiber
+        # PawnIO. Den legt nur das komplette Programm dazu (Haken im Setup),
+        # die Bibliothek allein meldet ohne ihn Grafikkarte und Mainboard und
+        # sagt, dass ihr der Treiber fehlt - die Oberflaeche gibt das weiter,
+        # statt eine leere Liste zu zeigen.
         shell: pwsh
         run: |
           $Fassung = "v0.9.6"
-          $Ziel = "paket\helfer"
-          $Datum = "$env:RUNNER_TEMP\mesdhilfe.zip"
           $Grund = "https://github.com/LibreHardwareMonitor/LibreHardwareMonitor"
+          $Datum = "$env:RUNNER_TEMP\messhilfe.zip"
+          $Ausgepackt = "$env:RUNNER_TEMP\entpackt"
           Invoke-WebRequest "$Grund/releases/download/$Fassung/LibreHardwareMonitor.zip" -OutFile $Datum
           "Gepruefte Datei: " + (Get-FileHash $Datum -Algorithm SHA256).Hash
-          Remove-Item -Recurse -Force $Ziel -ErrorAction SilentlyContinue
-          New-Item -ItemType Directory -Force -Path $Ziel | Out-Null
-          $Ausgepackt = "$env:RUNNER_TEMP\mesdhilfe"
+          Remove-Item -Recurse -Force $Ausgepackt -ErrorAction SilentlyContinue
           Expand-Archive $Datum -DestinationPath $Ausgepackt
-          # Die Zipdatei legt die Dateien mal direkt, mal in einem Ordner ab.
-          # Beides kommt hier auf eine Ebene, damit {app}\helfer keine
-          # verschachtelte Mappe bekommt.
-          $Kinder = @(Get-ChildItem $Ausgepackt)
-          $Quelle = if ($Kinder.Count -eq 1 -and $Kinder[0].PSIsContainer) {
-            $Kinder[0].FullName
-          } else { $Ausgepackt }
-          Copy-Item -Path "$Quelle\*" -Destination $Ziel -Recurse -Force
-          # Die Lizenz gehoert mit, weil die Messhilfe unter einer Lizenz steht,
-          # die das verlangt - und weil jemand, der den Ordner oeffnet, sehen
-          # soll, was hier fremd ist und woher es stammt.
+          # Die Lizenztexte gehoert mit, weil die Lizenz der Messhilfe das
+          # verlangt - und weil jemand, der den Ordner im Programmordner
+          # oeffnet, sehen soll, was hier fremd ist und woher es kommt.
           foreach ($Stueck in "LICENSE", "THIRD-PARTY-NOTICES.txt") {
-            Invoke-WebRequest "https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/$Fassung/$Stueck" -OutFile "$Ziel\$Stueck"
+            Invoke-WebRequest "https://raw.githubusercontent.com/LibreHardwareMonitor/LibreHardwareMonitor/$Fassung/$Stueck" -OutFile "$Ausgepackt\$Stueck"
           }
-          if (-not (Test-Path "$Ziel\LibreHardwareMonitor.exe")) {
-            "Die Messhilfe fehlt - der Haken bliebe leer."; exit 1
-          }
-          "Messhilfe: " + ((Get-ChildItem $Ziel | Measure-Object).Count) + " Dateien, " +
-            [math]::Round(((Get-ChildItem $Ziel -Recurse | Measure-Object Length -Sum).Sum / 1MB), 1) + " MB"
+          # Der Rest ist Sache des Skripts, damit Bauautomatik und ein Bau von
+          # Hand dasselbe tun: Helfer uebersetzen, Bausteine sortieren,
+          # Selbstversuch. Das Skript bricht ab, wenn der Helfer nicht redet.
+          ./packaging/messhilfe/bauen.ps1 -Entpackt $Ausgepackt
 
       - name: Programmdateien bauen
         run: pyinstaller --noconfirm --clean packaging/llano.spec
@@ -302,12 +296,25 @@ jobs:
           "Rueckgabe des Installers: $($p.ExitCode)"
           if ($p.ExitCode -ne 0) { exit 1 }
           $programme = "C:\Program Files\llano-control"
-          & "$programme\llano.exe" selftest
+          # Die Selbstdiagnose ist die einzige Stelle, die alles zusammen sieht:
+          # der installierte Helfer, seine Bibliothek, der Treiber, die Rechte.
+          # Sie steht deshalb hier - und sie muss von der Messhilfe erzehlen,
+          # sonst ist der Ordner ein leeres Versprechen.
+          $bericht = & "$programme\llano.exe" selftest 2>&1 | Out-String
           "Rueckgabe der Selbstdiagnose: $LASTEXITCODE - ohne Kuehler am Bauwagen ist 1 hier richtig"
+          $bericht
           # Die Powershell-Schale der Bauautomatik endet mit der letzten
           # Rueckgabe, und die Selbstdiagnose meldet ohne Geraet 1 - ohne diese
           # Zeile schlüge ein gelungener Install als Fehler an.
           $global:LASTEXITCODE = 0
+          if ($bericht -notmatch "Messhilfe\s+:") {
+            "Die installierte Selbstdiagnose sagt nichts ueber die Messhilfe."
+            exit 1
+          }
+          if ($bericht -notmatch "llano-messhilfe.exe") {
+            "Der installierte Helfer wird nicht gefunden."
+            exit 1
+          }
           $protokoll = "$env:RUNNER_TEMP\install-oberflaeche.txt"
           $oberflaeche = Start-Process "$programme\llano-control.exe" -ArgumentList "--minimized" -PassThru -RedirectStandardError $protokoll
           if ($oberflaeche.WaitForExit(40000)) {
@@ -323,16 +330,28 @@ jobs:
           }
           "Die installierte Oberflaeche lief nach 40 Sekunden - gut."
 
-          # Der Helfer-Haken ist standardmaessig an, also muss die Messhilfe im
-          # Programmordner liegen. Ob sie aus den dabeigelegten Einstellungen
-          # heraus wirklich antwortet, wird danach gefragt - nicht angeklickt.
-          $hilfe = "$programme\helfer\LibreHardwareMonitor.exe"
-          if (-not (Test-Path $hilfe)) {
-            "Der Haken war an, aber die Messhilfe wurde nicht installiert."
+          # Die mitgebrachte Messhilfe haengt an keinem Haken, sie muss also
+          # immer im Ordner liegen - und zwar mit ihrem Helfer, nicht nur mit
+          # der Bibliothek.
+          if (-not (Test-Path "$programme\messhilfe\llano-messhilfe.exe")) {
+            "Die mitgebrachte Messhilfe ist nicht im Installationsordner."
             Get-ChildItem $programme | Select-Object -ExpandProperty Name
             exit 1
           }
-          "Messhilfe installiert: " + ((Get-ChildItem "$programme\helfer" |
+          "Messhilfe im Ordner: " + ((Get-ChildItem "$programme\messhilfe" |
+              Measure-Object).Count) + " Dateien, " +
+            [math]::Round(((Get-ChildItem "$programme\messhilfe" -Recurse |
+              Measure-Object Length -Sum).Sum / 1MB), 1) + " MB"
+          # Der Haken ist standardmaessig an, also muss auch das komplette
+          # Programm liegen. Ob es aus den dabeigelegten Einstellungen heraus
+          # wirklich antwortet, wird danach gefragt - nicht angeklickt.
+          $hilfe = "$programme\helfer\LibreHardwareMonitor.exe"
+          if (-not (Test-Path $hilfe)) {
+            "Der Haken war an, aber das Messprogramm wurde nicht installiert."
+            Get-ChildItem $programme | Select-Object -ExpandProperty Name
+            exit 1
+          }
+          "Messprogramm installiert: " + ((Get-ChildItem "$programme\helfer" |
               Measure-Object).Count) + " Dateien"
           Start-Process $hilfe | Out-Null
           $antwort = $null
@@ -357,6 +376,7 @@ jobs:
             $global:LASTEXITCODE = 0
           }
           & "$env:SystemRoot\System32\taskkill.exe" /F /IM LibreHardwareMonitor.exe 2>$null | Out-Null
+          & "$env:SystemRoot\System32\taskkill.exe" /F /IM llano-messhilfe.exe 2>$null | Out-Null
 
       - name: Dateien fuers Verzeichnis
         uses: actions/upload-artifact@v4

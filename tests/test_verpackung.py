@@ -38,10 +38,30 @@ class HakenFuerDieMesshilfe(unittest.TestCase):
                          "ohne CPU-Werte ist die Kurve halb so wertvoll")
 
     def test_er_kopiert_in_den_Ordner_der_Bauautomatik(self):
-        self.assertIn('Source: "..\\..\\paket\\helfer\\*"', INSTALLER)
+        self.assertIn('Source: "..\\..\\paket\\programm\\*"', INSTALLER)
         self.assertIn('DestDir: "{app}\\helfer"', INSTALLER)
         self.assertIn("skipifsourcedoesntexist", INSTALLER,
                       "ein Bau von Hand soll ohne den Ordner nicht scheitern")
+
+    def test_die_Bibliothek_ohne_Haken_mit_kommt(self):
+        # Der kleine Helfer ist der Grund, warum ueberhaupt jemand auf die
+        # Prozessortemperatur hoffen darf: kein Haken, keine Frage, kein
+        # zweites Programm. Steht ein Tasksatz davor, liegt er nicht im Ordner.
+        zeilen = INSTALLER.splitlines()
+        anfang = [n for n, z in enumerate(zeilen)
+                  if 'paket\\messhilfe\\*' in z]
+        self.assertEqual(len(anfang), 1, "die Messhilfe wird nicht (oder doppelt) kopiert")
+        block = "\n".join(zeilen[anfang[0]:anfang[0] + 3])
+        self.assertIn('DestDir: "{app}\\messhilfe"', block)
+        self.assertNotIn("Tasks:", block,
+                         "die mitgebrachte Messhilfe haengt an keinem Haken")
+
+    def test_auch_der_Messehelfer_wird_beim_Update_geraeumt(self):
+        self.assertIn('Type: filesandordirs; Name: "{app}\\messhilfe"', INSTALLER)
+
+    def test_beide_helfer_verabschiedet_werden(self):
+        self.assertIn("/IM llano-messhilfe.exe", INSTALLER)
+        self.assertIn("/IM LibreHardwareMonitor.exe", INSTALLER)
 
     def test_ein_Update_macht_den_Ordner_leer(self):
         # Das alte Lied: ein Update ueberschreibt Gleichnamiges, der Rest bleibt.

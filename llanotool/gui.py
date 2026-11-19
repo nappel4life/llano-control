@@ -1205,7 +1205,12 @@ class MainWindow(QMainWindow):
             grund = self.controller.sensors.note() or ""
         except Exception:                                     # noqa: BLE001
             grund = ""            # die Anzeige darf an einer Auskunft nicht sterben
-        if "Messhilfe" in grund:
+        if "PawnIO" in grund or "Treiber" in grund:
+            # Die mitgebrachte Messhilfe arbeitet, ihr fehlt nur der Treiber
+            # fuer die Prozessorfuehler. Dafuer ist nicht die Messhilfe selbst
+            # die Antwort, sondern der Treiber, den sie dazulegen kann.
+            grund += ' <a href="https://pawnio.eu/">Treiber holen</a>'
+        elif "Messhilfe" in grund:
             grund += (' <a href="https://github.com/LibreHardwareMonitor/'
                       'LibreHardwareMonitor/releases">Messhilfe holen</a>')
         if self.sensor_note.text() == grund:

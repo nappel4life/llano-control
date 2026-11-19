@@ -534,6 +534,17 @@ def main() -> int:
            not window.sensor_note.isHidden() and "Messhilfe" in window.sensor_note.text())
     expect("und der Satz ist ein Weg zur Messhilfe",
            'href="https://github.com/LibreHardwareMonitor' in window.sensor_note.text())
+    # Die mitgebrachte Messhilfe kann auch arbeiten und trotzdem nichts vom
+    # Prozessor wissen - ihr fehlt dann der Treiber. Fuer den Fall ist die
+    # Messhilfe selbst die falsche Bitte.
+    window.controller.sensors.note = lambda: ("Die mitgelieferte Messhilfe "
+                                              "arbeitet, aber dieser Rechner hat "
+                                              "keinen Treiber fuer die "
+                                              "Prozessorfuehler (PawnIO).")
+    window._zeige_sensorgrund()
+    pump(0.2)
+    expect("und der Satz fuehrt zum Treiber, nicht zur Messhilfe",
+           'href="https://pawnio.eu/"' in window.sensor_note.text())
     window.controller.sensors.note = lambda: None
     window._zeige_sensorgrund()
     expect("und schweigt, wenn nichts fehlt", window.sensor_note.isHidden())

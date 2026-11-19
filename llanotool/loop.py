@@ -396,6 +396,7 @@ class Controller:
         finally:
             self.finish()
             self.disconnect()
+            self.sensors.schliessen()
             if acquire:
                 self.lock.release()
 

@@ -32,6 +32,7 @@ import time
 
 from .sensors_hwiinfo import HWiNFO
 from .sensors_lhm import LHM
+from .sensors_messhilfe import Messhilfe
 
 IS_WINDOWS = os.name == "nt"
 
@@ -270,7 +271,8 @@ TEXT_OHNE_PROZESSOR = (
     "Windows zurueck. Messhilfe beenden und als Administrator neu starten.")
 
 TEXT_HILFE_FEHLT = (
-    "Ohne Messhilfe fehlt die Prozessortemperatur: HWiNFO laufen lassen "
+    "Ohne Messhilfe fehlt die Prozessortemperatur: beim Setup den Haken "
+    "\"CPU-Temperaturen mitinstallieren\" anlassen, HWiNFO laufen lassen "
     "(Einstellungen 'Shared Memory Support') oder LibreHardwareMonitor "
     "(Optionen 'Remote Web Server'). Ohne eine von beiden gibt Windows die "
     "Prozesstemperaturen nicht her. Laeuft die Messhilfe als Administrator, muss "
@@ -285,12 +287,20 @@ class Sensors:
         self._zones = WindowsThermalZones() if IS_WINDOWS else None
         self._hwiinfo = HWiNFO() if IS_WINDOWS else None
         self._lhm = LHM() if IS_WINDOWS else None
+        # Die Messhilfe kann auf zwei Arten fragen: als eigenes Programm mit
+        # Web-Server (``_lhm``) oder als die mitgelieferte Bibliothek in einem
+        # eigenen Helferprozess (``_messhilfe``). Beide melden dieselben Namen,
+        # also gibt es keine Entscheidung zu faellen - die Vereinigung gewinnt,
+        # und die mitgebrachte Quelle steht vorn, weil sie immer da ist.
+        self._messhilfe = Messhilfe() if IS_WINDOWS else None
 
     def read(self, collapse: bool = True) -> dict[str, float]:
         if IS_WINDOWS:
             temps = dict(self._zones.read())      # type: ignore[union-attr]
             temps.update(self._hwiinfo.lesen())   # type: ignore[union-attr]
-            temps.update(self._lhm.lesen())       # type: ignore[union-attr]
+            for quelle in (self._messhilfe, self._lhm):
+                for schluessel, grad in quelle.lesen().items():   # type: ignore[union-attr]
+                    temps.setdefault(schluessel, grad)
         else:
             temps = read_hwmon()
         gpu = self._nvidia.read()
@@ -301,16 +311,18 @@ class Sensors:
     def note(self) -> str | None:
         """What a missing temperature list means, if anything.
 
-        Unter Windows sind dafuer drei Wege im Kopf: die Waermezonen des
-        Betriebssystems, der Speicherblock von HWiNFO und die Anfrage an
-        LibreHardwareMonitor. Was fehlt, wird gesagt - jeder Grund hat seine
+        Unter Windows sind dafuer vier Wege im Kopf: die Waermezonen des
+        Betriebssystems, die mitgebrachte Messhilfe im eigenen Helferprozess,
+        der Speicherblock von HWiNFO und die Anfrage an einen LibreHardware-
+        Monitor mit Web-Server. Was fehlt, wird gesagt - jeder Grund hat seine
         eigene Antwort, und zwei Hinweise auf einmal waeren laestig.
         """
         meldungen = []
         if self._zones is not None and not self._zones.read():
             meldungen.append(self._zones.reason)
 
-        hilfen = [hilfe for hilfe in (self._hwiinfo, self._lhm) if hilfe is not None]
+        hilfen = [hilfe for hilfe in (self._messhilfe, self._hwiinfo, self._lhm)
+                  if hilfe is not None]
         stillstand = [hilfe.stillstand for hilfe in hilfen if hilfe.stillstand]
         if stillstand:
             # Eine Messhilfe laeuft, traegt aber nichts mehr bei. Das ist die
@@ -318,8 +330,16 @@ class Sensors:
             meldungen += stillstand
         elif hilfen and not self._hat_cpu_temperatur():
             stille = [hilfe for hilfe in hilfen if not hilfe.lesen()]
-            if len(stille) == len(hilfen):
+            anwesend = [hilfe for hilfe in stille if getattr(hilfe, "anwesend", False)]
+            if len(stille) == len(hilfen) and not anwesend:
                 meldungen.append(TEXT_HILFE_FEHLT)
+            elif len(stille) == len(hilfen):
+                # Die mitgebrachte Messhilfe liegt im Programmordner und
+                # schweigt trotzdem - dann ist "leg dir erst eine Messhilfe zu"
+                # die falsche Bitte. Es fehlt an Treiber oder Rechten, und
+                # welcher von beiden das ist, weiss nur sie selbst.
+                grund = anwesend[0].hinweis() or TEXT_HILFE_FEHLT
+                meldungen.append(grund)
             elif stille:
                 grund = stille[0].hinweis()     # die andere Seite liefert ja
                 if grund:
@@ -337,6 +357,43 @@ class Sensors:
         return any(hinweis in schluessel.lower()
                    for schluessel in self.read(collapse=False)
                    for hinweis in andeutungen)
+
+    def schliessen(self) -> None:
+        """Die mitgebrachte Messhilfe verabschieden.
+
+        Sie haengt an einer Leitung zu diesem Prozess und geht deshalb auch von
+        allein aus. Nur dauert "allein" dem Task-Manager gegenueber zu lange,
+        und jemand, der gerade aufraeumt, sieht keinen Grund fuer Geduld.
+        """
+        if self._messhilfe is not None:
+            self._messhilfe.schliessen()
+
+    def warmup(self, secunden: float = 5.0) -> None:
+        """Der einen Befehl am Fenster so lange warten lassen, bis die Messhilfe antwortet.
+
+        Die Oberflaeche fragt alle paar Sekunden erneut, ihr laeuft die erste
+        Antwort einfach spaeter zu. Ein Befehl am Fenster dagegen endet, und
+        wer ``llano sensors`` eintippt und eine leere Liste sieht, hat eine
+        schlechtere Auskunft als vorher. Also: hier warten, dort nicht - und
+        nur, solange ueberhaupt etwas zu erwarten ist.
+        """
+        hilfe = self._messhilfe
+        if hilfe is None or not hilfe.anwesend:
+            return
+        jetzt = time.monotonic()
+        meldung_um = None
+        while time.monotonic() - jetzt < secunden:
+            if hilfe.lesen() or hilfe.grund:
+                return
+            if hilfe.bericht and meldung_um is None:
+                meldung_um = time.monotonic()
+            elif meldung_um is not None and time.monotonic() - meldung_um > 1.5:
+                return          # meldet sich, aber ohne Werte: wararten lohnt nicht
+            time.sleep(0.1)
+
+    def selbstbericht(self) -> list[str]:
+        """Zeilen ueber die eigene Messhilfe fuer ``llano selftest``."""
+        return self._messhilfe.selbstbericht() if self._messhilfe else []
 
     def list(self, collapse: bool = True) -> list[dict]:
         """Stable, human friendly list for pickers in the UI."""

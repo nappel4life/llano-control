@@ -197,12 +197,14 @@ def cmd_power(args) -> int:
 
 def cmd_sensors(args) -> int:
     source = Sensors()
+    source.warmup()               # die mitgebrachte Messhilfe braucht eine Sekunde Zeit
     temps = source.read(collapse=not args.all)
     if not temps:
         print("Keine Temperatursensoren gefunden.")
         note = source.note()
         if note:
             print(f"\n{note}")
+        source.schliessen()
         return 1
     width = max(len(key) for key in temps)
     for key in sorted(temps):
@@ -223,6 +225,7 @@ def cmd_sensors(args) -> int:
     note = source.note()
     if note:
         print(f"\nHinweis: {note}")
+    source.schliessen()
     return 0
 
 
@@ -482,6 +485,7 @@ def cmd_selftest(args) -> int:
             print("                 (es laeuft bereits eine Steuerung; die schreibt auch)")
 
     source = Sensors()
+    source.warmup()
     temps = source.read()
     if temps:
         warmest = max(temps, key=temps.get)
@@ -493,6 +497,12 @@ def cmd_selftest(args) -> int:
     note = source.note()
     if note:
         print(f"                 {note}")
+    for zeile in source.selbstbericht():
+        # Die mitgebrachte Messhilfe ist ein Punkt im Installer, und ohne diese
+        # Zeilen muesste ueber sie geraten werden: liegt sie, darf sie, hat sie
+        # einen Treiber. Sie sagt es selbst.
+        print(zeile)
+    source.schliessen()
 
     print()
     print("Alles da, was zum Kuehlen noetig ist." if ok

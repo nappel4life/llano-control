@@ -1,8 +1,8 @@
 # Stand — llano-control
 
-*Aufgeschrieben am 18. November 2026, nach Fassung 1.1.11 (veröffentlicht) und
-1.2.0 (im Bau). 98 Prüfungen, davon 4 nur auf Windows; rund 5.800 Zeilen
-Programm über alle Module.*
+*Aufgeschrieben am 19. November 2026, nach Fassung 1.1.11 (veröffentlicht) und
+1.3.0 (im Bau, darin ist 1.2.0 aufgegangen). 119 Prüfungen, davon 4 nur auf
+Windows; rund 5.700 Zeilen Steuerprogramm, 372 Zeilen Helfer in C#.*
 
 ---
 
@@ -19,15 +19,16 @@ Einstellungs- und Sperrdatei.
 
 | | |
 |---|---|
-| Fassung | 1.1.11 veröffentlicht, **1.2.0 im Bau** |
+| Fassung | 1.1.11 veröffentlicht, **1.3.0 im Bau** (1.2.0 ist darin aufgegangen) |
 | Gerätepfad Linux | hidraw, direkt nachgemessen am Gerät |
 | Gerätepfad Windows | setupapi + hid.dll, ohne dritte Bibliothek |
 | Oberfläche | PyQt6, dunkles Theme, Lüfter/ Licht/ Kurve/ Temperaturen |
 | Temperaturen Linux | coretemp, k10temp, acpitz, nvme, nvidia, spd5118, iwlwifi, … |
-| Temperaturen Windows | NVIDIA über NVAPI, AC-Wärmezonen, HWiNFO, LibreHardwareMonitor |
+| Temperaturen Windows | NVIDIA über NVAPI, AC-Wärmezonen, **mitgebrachte Messhilfe** (`{app}\messhilfe`), HWiNFO, LibreHardwareMonitor |
 | Einstellungsdatei | `%APPDATA%\llano\config.json` / `~/.config/llano/config.json` |
 | Startprotokoll | `%APPDATA%\llano\oberflaeche.txt` (seit 1.1.8 jeder Schritt) |
 | Pakete | Windows-Installer, `.deb`, AppImage, `.tar.gz`, `llano-rs.exe` |
+| Messhilfe | LibreHardwareMonitorLib 0.9.6 (MPL 2.0) + eigener Helfer `llano-messhilfe.exe` (C#, 20 KB) |
 | Bauen | GitHub Actions, sechs Läufe; Veröffentlichung nur, wenn alle grün sind |
 
 Alle Befehle: `status`, `fan`, `light`, `power`, `sensors`, `curve`, `daemon`,
@@ -38,39 +39,63 @@ jede Frage — er prüft jeden Schritt einzeln und sagt, welcher fehlt.
 
 **Windows gibt sie ohne Kernel-Treiber nicht heraus.** Die Fühler hängen an
 modelspezifischen Registern, und die darf nur ein Treiber in Ring 0 lesen. Eine
-Bibliothek allein reicht deshalb nicht, und ein eigenes Programm bräuchte einen
-von Microsoft signierten Treiber. Es bleibt: **ein fremdes Programm mit
-signiertem Treiber als Quelle** — oder die Kurve folgt der Grafikkarte.
+Bibliothek allein reicht deshalb nicht, und ein eigener Treiber bräuchte ein
+Signat von Microsoft. Es bleibt: **fremder Treiber als Quelle** — oder die Kurve
+folgt der Grafikkarte.
 
-Eingebaut sind drei Wege, und sie schließen sich nicht gegenseitig aus:
+**Die Messhilfe ist seit 1.3.0 eingebaut** — die Frage war nicht, *ob* man eine
+DLL dazulegen darf, sondern *welche*: Die DLL aus der Hersteller-Software bringt
+fast immer WinRing0 mit, einen Ring-0-Treiberlader, den Microsoft als angreifbar
+meldet und dessen Liste blockierter Treiber auf aktuellem Windows scharf ist.
+LibreHardwareMonitor hat WinRing0 in Fassung 0.9.6 gegen den signierten Treiber
+**PawnIO** getauscht und steht unter MPL 2.0. Genau diese Bibliothek liegt jetzt
+bei — zusammen mit einem 20 Kilobyte kleinen Helfer (`llano-messhilfe.exe`, C#),
+den das Steuerprogramm selbst startet, abfragt und wieder beendet.
+
+Vier Entscheidungen darin sind nicht selbstverständlich:
+
+* **Ein eigener Prozess, nicht pythonnet.** Das Steuerprogramm hält an
+  `dependencies = []` fest; eine .NET-Brücke wäre die dritte Paketsammlung im
+  Haus und die erste, die beim Verpacken mitredet. Vor allem aber: Ein Fremd-
+  programm, das durch einen Kernel-Treiber liest, fällt um — fällt es im eigenen
+  Prozess, fällt das Fenster mit. Genau diese Erfahrung heißt hier
+  „Zugriffsverletzung beim Aufräumen“. Ein Helfer, der umfällt, kostet eine
+  fehlende Zahl.
+* **Der Compiler, den Windows mitbringt.** Übersetzt wird mit
+  `%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`, ohne SDK, ohne NuGet.
+  Die Bibliothek ist eine .NET-Framework-4.7.2-Baugruppe (nachgemessen an der
+  Datei, nicht am Text), und die hat jeder aktuelle Windows-Rechner an Bord.
+* **Der Helfer hängt an einer Leitung.** Er liest die Standardeingabe und
+  wartet; stirbt das Steuerprogramm, schließt die Leitung, und er geht aus. Ein
+  zurueckbleibender Helfer wäre genau das zweite Programm, das der Einbau
+  abschaffen will. Der Fall ist geprüft, nicht angenommen.
+* **Er redet über sich selbst.** Die erste Zeile nennt Treiber (PawnIO,
+  installiert?), Rechte (erhöht?) und Bibliotheksfassung. Die Bibliothek weiß
+  das — ohne diese Zeile wäre „keine CPU-Wert“ wieder eine Raterei gewesen, und
+  die Oberfläche müsste zwischen „Treiber fehlt“ und „Du bist nicht
+  Administrator“ raten.
+
+Was der Einbau *nicht* abschaffen kann: Der Prozessor braucht PawnIO auf dem
+Rechner **und** erhöhte Rechte. Beides sagt das Programm beim Namen (die
+Oberfläche verlinkt dann den Treiber statt der Messhilfe), und beides bekommt
+man über den Haken im Installer: Das komplette Messprogramm in
+`llano-control\helfer` legt den Treiber mit einem Klick dazu und liefert seine
+Werte über den Web-Server auch dann, wenn dieses Programm normal arbeitet.
+
+Daneben arbeiten unverändert weiter:
 
 1. **HWiNFO** — liest den gemeinsamen Speicherblock mit, den das Programm
    schreibt (*Shared Memory Support*). Werte erscheinen als `hwiinfo:`.
    Nachteil: läuft HWiNFO als Administrator, ist für ein normales Programm
    nichts mehr zu lesen. Die kostenlose Fassung hält ausserdem nach etwa zwölf
    Stunden mit neuen Zahlen inne; das meldet das Programm.
-2. **LibreHardwareMonitor** — fragt seinen eingebauten Web-Server ab
-   (*Optionen → Remote Web Server*, Port 8085). Werte erscheinen als `lhm:`.
-   Vorteil: funktioniert auch über Integritätsgrenzen, also wenn die Messhilfe
-   erhöht läuft.
-3. **Der Haken im Installer** (neu in 1.2.0, standardmäßig an) — legt
-   LibreHardwareMonitor nach `llano-control\helfer`, mit vorgefertigten
-   Einstellungen (Web-Server an, minimiert im Symbolbereich) und einer
-   Anmeldungsaufgabe mit höchsten Rechten, damit nicht bei jeder Anmeldung eine
-   Sicherheitsabfrage kommt. Deinstallieren meldet die Aufgabe zuerst ab und
-   schliesst den laufenden Helfer.
+2. **LibreHardwareMonitor mit Web-Server** — Port 8085, Werte als `lhm:`.
+   Vorteil: funktioniert über Integritätsgrenzen hinweg.
 
-*Warum nicht die DLL aus der Software des Herstellers?* Die bringt fast immer
-WinRing0 mit — einen Ring-0-Treiberlader, den Microsoft als angreifbar meldet
-und dessen Liste blockierter Treiber auf aktuellem Windows standardmäßig scharf
-ist. Ein Installer damit wäre bei jeder Installation ein Alarm und auf Rechnern
-mit Speicherintegrität einfach taub.
-
-Die **Bibliothek** desselben Programms (`LibreHardwareMonitorLib`) wäre der
-eigentlich sauberste Weg: Werte direkt im eigenen Programm, kein zweites
-Symbol. Sie ist .NET; ihr Laden aus Python (Laufzeit, Verpacken,
-Treiberzugriff) ist ein eigenes Stück Arbeit. Der Haken ist die Vorstufe, bei
-der sich die Quelle später darunter austauschen lässt.
+Alle Quellen melden in dieselbe Namensmenge (`lhm:` für beide Arten der
+Messhilfe), deshalb bleibt eine einmal getroffene Messstellen-Auswahl erhalten,
+egal welche Quelle gerade liefert. Die Vereinigung gewinnt: Prozessor von der
+einen Quelle, Grafikkarte von der anderen.
 
 ## Was kaputt war und wie es gefunden wurde
 
@@ -129,7 +154,7 @@ aufschreibt — die eigentliche Lehre der letzten Stunden:
 ## Prüfen und Bauen
 
 ```
-python3 -m unittest discover -s tests        # 98 Pruefungen
+python3 -m unittest discover -s tests        # 119 Pruefungen
 QT_QPA_PLATFORM=offscreen python3 tools/gui_probe.py /tmp/pruef.png
 ```
 
@@ -137,20 +162,45 @@ Die Bauautomatik (`.github/workflows/pakete.yml`) baut nach: Prüfen auf Ubuntu
 und Windows, Rust, Linux-Pakete, Windows-Installer — und veröffentlicht nur,
 wenn **alle** grün sind. Der Windows-Lauf startet die gebaute Oberfläche,
 installiert die fertige Datei stumm, prüft, dass das installierte Programm
-läuft und dass der beigelegte Helfer wirklich im Ordner liegt.
+läuft, dass die Messhilfe im Ordner liegt und dass die installierte
+Selbstdiagnose etwas über sie zu sagen weiß.
+
+Die Zusammenarbeit mit der Messhilfe wird mit einem **nachgebauten Helfer**
+geprüft (`tests/helfer_probeweise.py`): Ein Prüflauf hier hat kein .NET, aber
+die Zeilenverabredung, den Tod des Helfers, die Fehlermeldung der Laufzeit und
+den höflichen Abschied kann er täuschend echt spielen. Eine eigene Prüfung hält
+außerdem die Schlüssel beider Sprachen zusammen — tippt die eine Seite einen
+Namen um, fällt das hier auf und nicht erst am Gerät.
+
+Was ein Prüflauf hier **nicht** kann: `packaging/messhilfe/messhilfe.cs`
+übersetzen und `bauen.ps1` ausführen. Beides sieht zum ersten Mal die
+Bauautomatik, und die übersetzt nicht nur, sondern startet den fertigen Helfer
+auch selbst und bricht den Lauf ab, wenn er keine Zeile über sich
+schreibt. Erst mit diesem Lauf steht also fest, dass der Einbau funktioniert.
 
 ## Offene Punkte
 
-* **1.2.0 muss durch die Bauautomatik** — inklusive dem Nachweis, dass die
-  beigelegte Messhilfe im Installationsordner ankommt.
-* **Nach der Installation startet die Messhilfe erst zur nächsten Anmeldung.**
-  Umstellung auf sofortigen Start über die eben angelegte Aufgabe.
-* **Die Messhilfe ist ein fremdes Programm** (Mozilla Public License 2.0;
-  Lizenztexte liegen im Helferordner). Wer den Haken nicht setzt, bekommt den
-  Führungsweg statt einer Installation.
+* **1.3.0 muss durch die Bauautomatik** — zum ersten Mal wird dort C#
+  uebersetzt. Uebersetzer, Referenzen und die ersten Taktseconds des Helfers
+  sind auf einem echten Windows zu beweisen.
+* **Ohne erhöhte Rechte fehlen die Prozessoren.** Der Helfer erfaehrt das und
+  sagt es, aber ein Klick ist das noch nicht. Der naechste Schritt ist ein
+  erhoht gestarteter Helfer (die Leitung darf ein UAC-Fenster nicht
+  ueberleben — Datei oder lokaler Hafen statt Pipeline) oder ein Neustart des
+  Programms mit erhoehten Rechten.
 * **Der echte Beweis für `lhm:`-Werte fehlt noch am eigenen Gerät** — auf dem
   Bauwagen gibt es weder Fühler noch erlaubte Treiber, dort ist die Antwort
   deshalb nur eine Warnung.
-* **HWiNFO und LibreHardwareMonitor müssen laufen bleiben**, sonst fällt ihre
-  Quelle aus; beide haben dafür einen eigenen Autostart.
+* **PawnIO liegt nicht bei.** Der Treiber kommt ueber das Messprogramm (ein
+  Klick) oder von pawnio.eu; die Oberflaeche verlinkt beides an der richtigen
+  Stelle. Ein eigener Installationshaken dafuer ist eine eigene Frage — es ist
+  ein Kernel-Treiber.
+* **Nach der Installation startet das Messprogramm erst zur nächsten
+  Anmeldung.** Umstellung auf sofortigen Start über die dabei angelegte Aufgabe.
+* **Die Messhilfe ist Fremdcode** (Mozilla Public License 2.0, PawnIO-Bausteine
+  unter LGPL 2.1); Lizenztexte und ein `LESEAMICH.md` liegen im Ordner
+  `messhilfe`.
+* **HWiNFO und das Messprogramm müssen laufen bleiben**, sonst fällt ihre
+  Quelle aus; beide haben dafür einen eigenen Autostart. Die mitgebrachte
+  Messhilfe nicht — sie lebt mit diesem Programm.
 * Die Rust-Fassung ist am Windows-Gerät noch nicht ausprobiert.

@@ -1,4 +1,4 @@
-﻿; Installationsprogramm fuer Windows (Inno Setup 6)
+; Installationsprogramm fuer Windows (Inno Setup 6)
 ;
 ;   ISCC.exe /DVersion=1.1.1 packaging\windows\llano.iss
 ;
@@ -58,12 +58,13 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon";  Description: "Verknüpfung auf dem Desktop anlegen"
 Name: "autostart";    Description: "Bei jeder Anmeldung starten - der Kühler hält die Kurve auch ohne Fenster"
 Name: "pathicon";     Description: "llano.exe im Suchpfad anmelden - dann genügt `llano status` in jedem Eingabefenster"; Flags: unchecked
-; Die Prozessortemperatur kann nur ein Programm mit Kernel-Treiber holen. Statt
-; auf ein zweites Programm zu verweisen, liegt es hier einfach mit bei: im
-; eigenen Programmordner, mit eingeschaltetem Web-Server, minimiert im
-; Symbolbereich und ohne Sicherheitsabfrage bei jeder Anmeldung. Wer es nicht
-; will, nimmt den Haken raus - die Kurve laeuft auch ohne, nur eben ohne CPU.
-Name: "cpu";          Description: "CPU-Temperaturen mitinstallieren (Messhilfe LibreHardwareMonitor, {app}\helfer)"
+; Die Prozessortemperatur kann nur ein Programm mit Kernel-Treiber holen. Die
+; Messhilfe selbst liegt deshalb immer mit bei ({app}\messhilfe): ein Helfer
+; ohne Fenster, den dieses Programm selbst startet und wieder beendet. Dieser
+; Haken legt ausserdem das komplette fremde Programm dazu - das Fenster mit
+; Symbolbereich, das als einziges den Prozessortreiber dazulegen weiss und der
+; auch dann noch Werte liefert, wenn dieses Programm normal arbeitet.
+Name: "cpu";          Description: "Messhilfe LibreHardwareMonitor mitinstallieren (Fenster im Symbolbereich, {app}\helfer)"
 
 [InstallDelete]
 ; Ein Update ueberschreibt gleichnamige Dateien, aber was die alte Fassung
@@ -76,14 +77,20 @@ Type: files; Name: "{app}\llano-control.exe"
 Type: files; Name: "{app}\llano.exe"
 Type: files; Name: "{app}\llano-rs.exe"
 Type: filesandordirs; Name: "{app}\helfer"
+Type: filesandordirs; Name: "{app}\messhilfe"
 
 [Files]
 Source: "..\..\dist\llano-control\*"; DestDir: "{app}"; \
     Flags: ignoreversion recursesubdirs createallsubdirs
-; Der Helfer wird auf GitHub neben dem Installer geholt (siehe paketebaue.yml)
-; und ist hier schon ausgepackt. `skipifsourcedoesntexist` laesst einen Bau von
-; Hand trotzdem durchlaufen: ohne Ordner gibt es bloess nichts mitzukopieren.
-Source: "..\..\paket\helfer\*"; DestDir: "{app}\helfer"; Tasks: cpu; \
+; Die Messhilfe als Bibliothek: immer dabei, ohne Haken und ohne Frage. Ohne
+; Ordner laeuft das Programm wie vorher - die Quelle schweigt dann halt, und
+; die Oberflaeche sagt das. `skipifsourcedoesntexist` laesst einen Bau von Hand
+; durchlaufen, der die Bauautomatik nicht hinter sich hat.
+Source: "..\..\paket\messhilfe\*"; DestDir: "{app}\messhilfe"; \
+    Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
+; Das fremde Programm mit Fenster dazu; wird auf GitHub neben dem Installer
+; geholt (siehe pakete.yml) und ist hier schon ausgepackt.
+Source: "..\..\paket\programm\*"; DestDir: "{app}\helfer"; Tasks: cpu; \
     Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 Source: "helfer.config"; DestDir: "{app}\helfer"; DestName: "LibreHardwareMonitor.config"; \
     Tasks: cpu; Flags: ignoreversion skipifsourcedoesntexist
@@ -188,8 +195,15 @@ begin
     // Vor dem Loeschen: die Anmeldungsaufgabe abmelden und einen laufenden
     // Helfer schliessen. Sonst stehen die Dateien der Messhilfe noch im
     // Programmordner, und der Deinstaller meldet einen halbfertigen Stand.
+    // Der kleine Helfer (llano-messhilfe.exe) haengt an seinem
+    // Elternprozess und geht mit ihm aus - erhaelt er aber gerade Werte von
+    // einem Processor, der nicht antwortet, kann er lange sitzen; die Dateien
+    // des Ordners waeren danach beschaedigt.
     Exec(ExpandConstant('{sys}taskkill.exe'),
          '/F /IM LibreHardwareMonitor.exe', '', SW_HIDE,
+         ewWaitUntilTerminated, Code);
+    Exec(ExpandConstant('{sys}taskkill.exe'),
+         '/F /IM llano-messhilfe.exe', '', SW_HIDE,
          ewWaitUntilTerminated, Code);
     Exec(ExpandConstant('{sys}schtasks.exe'),
          '/Delete /F /TN "llano Messhilfe"', '', SW_HIDE,

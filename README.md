@@ -110,18 +110,45 @@ Zwei Unterschiede zu Linux, die man kennen sollte:
 * **Die Hersteller-Software.** MythCool hält das Gerät gelegentlich exklusiv
   belegtt. Wenn „kein Zugriff“ erscheint: MythCool beenden.
 
-### CPU-Temperatur unter Windows (HWiNFO oder LibreHardwareMonitor)
+### CPU-Temperatur unter Windows (mitgebrachte Messhilfe, HWiNFO, LibreHardwareMonitor)
 
-Wer die Kurve an die Prozesstemperatur hängen will, braucht unter Windows
-irgendeine Quelle dafür – die gibt es ohne Kernel-Treiber nicht, und einen
-Treiber will hier niemand installieren. Eine Bibliothek allein reicht übrigens
-auch nicht: Temperaturfühler im Prozessor hängen an modelspezifischen
+Wer die Kurve an die Prozesstemperatur hängen will, braucht unter Windows eine
+Quelle dafür – die gibt es ohne Kernel-Treiber nicht. Eine Bibliothek allein
+reicht dabei nicht: Temperaturfühler im Prozessor hängen an modelspezifischen
 Registern, und die darf nur ein Treiber lesen. Was also zählt, ist ein
-Programm, das diesen Treiber schon mitbringt und seine Werte für andere
-öffnet. Zwei kostenlose Wege sind eingebaut; **beide dürfen gleichzeitig
-laufen**, die Werte beider erscheinen in der Auswahl.
+Programm, das diesen Treiber schon mitbringt. **Das Paket bringt die Messhilfe
+seit Fassung 1.3.0 selbst mit** (Weg 1); die beiden bekannten fremden Quellen
+arbeiten unverändert weiter, und **alle Wege dürfen gleichzeitig laufen** –
+die Werte erscheinen zusammen in der Auswahl.
 
-**Weg 1 – HWiNFO.** Das Programm hält alle Messwerte in einem Speicherblock,
+**Weg 1 – die mitgebrachte Messhilfe.** Seit Fassung 1.3.0 liegt die Messhilfe
+selbst im Installer, immer und ohne Haken: `llano-control\messhilfe` mit
+`LibreHardwareMonitorLib.dll` und einem zwanzig Kilobyte kleinen Helfer
+(`llano-messhilfe.exe`), den dieses Programm selbst startet, abfragt und wieder
+beendet. Kein Fenster, kein Symbolbereich, kein Port, keine Einstellungsdatei –
+und kein Programm, das nach dem Schließen im Task-Manager stehen bleibt: Der
+Helfer hängt an einer Leitung zu diesem Prozess und geht mit ihm aus. Die Werte
+tragen dieselbe Kennung wie früher, `lhm:`; eine einmal gewählte Messstelle
+bleibt also erhalten. Der Eigenbau hat bewusst ein eigenes Programmchen und
+nicht die Bibliothek direkt im Python: Das Steuerprogramm braucht weiterhin
+außer der Standardbibliothek nichts (kein pythonnet, keine dritte
+Paketsammlung, die beim Verpacken mitredet), und ein Fremdprogramm, das durch
+einen Kernel-Treiber liest, darf umfallen, ohne das Fenster mitzunehmen.
+
+Zwei Bedingungen kann kein Einbau der Welt abschaffen. Beide meldet das
+Programm namentlich, statt eine leere Liste zu zeigen – `llano selftest` schreibt
+beide Zeilen, die die Messhilfe über sich selbst weiß:
+
+* **Der Treiber.** Die Fühler im Prozessor hängen an Registern, die nur ein
+  Kernel-Treiber lesen darf. Seit Fassung 0.9.6 der Messhilfe ist das
+  [PawnIO](https://pawnio.eu/), und die Bibliothek legt es nicht selbst bei.
+  Ohne ihn meldet sie Grafikkarte und Mainboard, aber keinen Prozessor – die
+  Oberfläche verlinkt dann den Treiber, nicht die Messhilfe.
+* **Die Rechte.** Dieselbe Schwelle gehört zur Gruppe Administratoren. Läuft
+  `llano-control.exe` normal, fehlen die Prozessoren; als Administrator
+  gestartet kommen sie. Der Haken bei Weg 3 umgeht beides.
+
+**Weg 2 – HWiNFO.** Das Programm hält alle Messwerte in einem Speicherblock,
 den jedes andere Programm mitlesen darf; es braucht dafür nur den eingeschalteten
 *Shared Memory Support* (Einstellungen → Main Settings, standardmäßig an).
 
@@ -132,54 +159,51 @@ den jedes andere Programm mitlesen darf; es braucht dafür nur den eingeschaltet
    Oberfläche unter „Temperaturen“ – etwa `hwiinfo:CPU (Package)`. Ankreuzen,
    und die Kurve folgt dem Prozessor.
 
-**Weg 2 – LibreHardwareMonitor.** Der bringt einen eigenen Treiber mit und kann
-auf dem Rechner einen kleinen Web-Server anlaufen lassen, über den wir die
-Werte abfragen.
+**Weg 3 – LibreHardwareMonitor mit Web-Server.** Die vollständige Fassung der
+Messhilfe, als Fenster im Symbolbereich oder nur als Antwort auf dem Port 8085.
+Der Haken „Messhilfe LibreHardwareMonitor mitinstallieren“ (standardmäßig an)
+legt sie nach `llano-control\helfer`, mit den vorgefertigten Einstellungen aus
+`packaging/windows/helfer.config`: Web-Server an, minimiert, keine
+Sicherheitsabfrage bei der Anmeldung – eine Anmeldungsaufgabe mit höchsten
+Rechten erledigt das. Wer sie lieber selbst installiert, nimmt die
+[`Setup.exe`](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases)
+und schaltet *Options → Remote Web Server* ein.
 
-1. [LibreHardwareMonitor](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor/releases)
-   installieren (die `Setup.exe`, damit der Treiber mit registriert wird).
-2. *Options → Remote Web Server* einschalten, Port 8085 stehen lassen.
-3. Wieder drei Sekunden warten: Die Werte kommen mit der Kennung `lhm:`, zum
-   Beispiel `lhm:Intel Core i7 CPU Package`.
+Zwei Dinge kann nur dieser Weg:
 
-Der zweite Weg hat einen praktischen Vorteil: Er funktioniert **auch dann, wenn
-die Messhilfe als Administrator läuft** – bei HWiNFO ist für ein normales
-Programm dann nichts mehr zu lesen. Ist der Port ein anderer, hilft die
-Umgebungsvariable `LLANO_LHM=http://127.0.0.1:8085/data.json`.
+* Er liefert die Prozessortemperaturen auch dann, wenn dieses Programm **normal
+  arbeitet** – der Helfer läuft erhöht und über eine Integritätsgrenze hinweg.
+  Bei HWiNFO ist für ein normales Programm nichts mehr zu lesen, wenn es als
+  Administrator läuft.
+* **Nur dieses Programm legt den Treiber mit einem Klick dazu** (die
+  Sicherheitsabfrage beim ersten Start mit „Ja“ beantworten). Danach braucht die
+  mitgebrachte Messhilfe von Weg 1 weder das Fenster noch den Web-Server, und
+  wer den Haken wieder rausnimmt, verliert nur das Fenster.
 
-**Der dritte Weg – der Haken im Installer.** „CPU-Temperaturen mitinstallieren“
-(standardmäßig angehakt) legt LibreHardwareMonitor nach `llano-control\helfer`,
-dazu die vorgefertigten Einstellungen aus `packaging/windows/helfer.config`:
-Web-Server auf 8085 an, minimiert im Symbolbereich, kein Fenster nach der
-Anmeldung – und eine Anmeldungsaufgabe mit höchsten Rechten, damit nicht bei
-jedem Anmelden eine Sicherheitsabfrage kommt. Danach ist nichts mehr
-anzuklicken. Deinstallieren räumt in dieser Reihenfolge: Aufgabe abmelden,
-laufenden Helfer schließen, Ordner mit der Anwendung löschen.
+Deinstallieren räumt in dieser Reihenfolge: Anmeldungsaufgabe abmelden,
+laufende Helfer schließen, Ordner löschen. Andere Ports und andere Ordner
+erledigen zwei Umgebungsvariablen: `LLANO_LHM=http://127.0.0.1:8085/data.json`
+für den Web-Server, `LLANO_MESSHILFE` für einen anderen Ort der mitgebrachten
+Messhilfe.
 
-Zwei Dinge gehören zu diesem Weg und stehen deshalb hier:
+Zwei Dinge gehören zu diesem Paket und stehen deshalb hier:
 
-* **Es bleibt ein fremdes Programm**, und zwar sichtbar im Symbolbereich. Es
-  steht unter der Mozilla Public License 2.0; `LICENSE` und
-  `THIRD-PARTY-NOTICES.txt` liegen im Helferordner, die Quellen beim
-  [Projekt](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor). Wer
-  das nicht auf der Platte will, nimmt den Haken raus und geht Weg 1 oder 2.
+* **Es bleibt Fremdcode**, auch ohne Fenster. Die Messhilfe steht unter der
+  Mozilla Public License 2.0, ihre PawnIO-Bausteine unter GNU LGPL 2.1;
+  `LICENSE`, `THIRD-PARTY-NOTICES.txt` und ein `LESEAMICH.md` liegen im Ordner
+  `messhilfe`, die Quellen beim
+  [Projekt](https://github.com/LibreHardwareMonitor/LibreHardwareMonitor).
 * **Warum nicht die DLL aus der Hersteller-Software?** Die bringt fast immer
   WinRing0 mit, einen Ring-0-Treiberlader, den [Microsoft als angreifbar
   meldet](https://support.microsoft.com/en-us/windows/security/threat-malware-protection/microsoft-defender-antivirus-alert-vulnerabledriver-winnt-winring0)
   und dessen [Liste blockierter Treiber](https://learn.microsoft.com/en-us/windows/security/operating-system-security/driver-security/malicious-and-vulnerable-driver-blocklists)
   auf aktuellem Windows standardmäßig scharf ist — ein Installer mit dieser DLL
   wäre bei jeder Installation ein Alarm und auf Rechnern mit Speicherintegrität
-  einfach taub. Ein eigener Treiber müsste von Microsoft signiert sein. Die
-  aktuelle Messhilfe bringt einen signierten, speicherintegritätsfähigen Treiber
-  mit — deshalb funktioniert sie überhaupt noch.
+  einfach taub. Ein eigener Treiber müsste von Microsoft signiert sein; die
+  aktuelle Messhilfe bringt einen signierten Treiber mit — deshalb funktioniert
+  sie überhaupt noch.
 
-Die *Bibliothek* desselben Programms (`LibreHardwareMonitorLib`) wäre der
-eigentlich sauberste Weg: kein zweites Programm, Werte direkt im eigenen. Sie ist
-eine .NET-Bibliothek, und ihr Laden aus Python — Laufzeit, Verpacken,
-Treiberzugriff — ist ein eigenes Stück Arbeit. Der Haken ist die Vorstufe, bei
-der sich die Quelle später austauschen lässt.
-
-Fünf Dinge, die dabei auffallen können und absichtlich gemeldet werden:
+Sechs Dinge, die dabei auffallen können und absichtlich gemeldet werden:
 
 * **HWiNFO läuft als Administrator** – dann kann ein normales Programm den
   Block nicht lesen, und auch dieses Programm müsste erhöht starten.
@@ -193,6 +217,10 @@ Fünf Dinge, die dabei auffallen können und absichtlich gemeldet werden:
   ohne Administratorrechte, und die Fühler im Prozessor hält Windows hinter
   dieser Schwelle zurück. Die Oberfläche sagt das inzwischen ausdrücklich statt
   zu schweigen.
+* **Die mitgebrachte Messhilfe sagt nichts.** Sie liegt im Programmordner und
+  meldet doch nichts — dann hält die Sicherheitssoftware den Treiber zurück oder
+  die .NET-Laufzeit fehlt. Was der Helfer als Letztes von sich gab, steht in
+  ihrem ersten Satz; dieses Tonband wirft sie nicht weg.
 * **Die erste Antwort darf eine Weile brauchen.** LibreHardwareMonitor baut
   seine Datei erst beim Fragen zusammen; gleich nach dem Start warten wir zwei
   Sekunden, nicht eine halbe. Ist gar nichts erreichbar, antwortet Windows
@@ -516,7 +544,7 @@ bash packaging/build-portable.sh       # -> out/*.tar.gz
 
 Für den Windows-Installer brauchst du Windows selbst (Inno Setup 6 und
 `pyinstaller --noconfirm --clean packaging/llano.spec`, danach
-`ISCC.exe /DVersion=1.2.0 packaging\windows\llano.iss`). Auf einem Linux- oder
+`ISCC.exe /DVersion=1.3.0 packaging\windows\llano.iss`). Auf einem Linux- oder
 Mac-Rechner wird der Installer nur auf GitHub gebaut — der Weg über Wine ist
 mit Qt in PyInstaller unzuverlässig, und die Tester sollen ein echtes Windows
 sehen.
@@ -524,7 +552,11 @@ sehen.
 Die Bau-Vorschrift `packaging/llano.spec` erzeugt in einem Ordner zwei
 Programmdateien: `llano` mit Konsole (Kommandozeile) und `llano-control` ohne
 Konsole (Oberfläche). Beide teilen sich denselben Satz Bibliotheken, damit
-nicht zweimal dasselbe Qt im Paket liegt.
+nicht zweimal dasselbe Qt im Paket liegt. Die Messhilfe ist davon getrennt:
+`powershell packaging/messhilfe/bauen.ps1 -Entpackt <Ordner mit der
+Messhilfe-Auspackung>` uebersetzt den Helfer und fuellt die beiden Ordner
+`paket/messhilfe` (immer im Installer) und `paket/programm` (nur bei
+angehaktem Fenster im Symbolbereich).
 
 ## Tests
 
